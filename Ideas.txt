@@ -1,0 +1,39 @@
+You are the only zombie in the world. But you are self aware you are a zombie. So you work on finding a cure for yourself.
+
+To stay alive you must hunt ppl but that will make your efforts to find cure difficult as ppl will begin attacking you.
+
+
+
+The zombie will look like humans, but as you eat they become suspicious of you. So you have to cleverly trap ppl to eat them out of sight of ppl.
+
+You must behave normally to reduce your suspicion meter. 
+
+Not eating for a long time will cause you to decay.
+
+You must go on to skillfully kill 3 officers to get cure fragments. Which will cure you.
+These ppl were the direct cause for you to become like this.
+
+high suspicion meter will make ppl kill you.
+
+
+
+
+
+Suspicion Meter
+Global float value (0.0 to 100.0)
+
+Increased by:
+Being seen feeding
+Acting oddly (e.g., sprinting, erratic movement)
+
+Decreased by:
+Blending in (walking near crowds)
+Performing “normal” actions (idle, slow walk)
+
+
+AI Behavior
+Civilians: Randomly wander, flee when they see something suspicious
+Officers: Patrol in a set area; will chase if they detect you
+Witness System: If a civilian sees a feeding → raises local alarm
+
+I want to since the models are not images but nested rects meant to simulate faces, I have room to play around with algorithmically generated emotions by modifying the shapes of the rects
