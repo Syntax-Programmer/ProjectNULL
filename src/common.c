@@ -2,6 +2,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+/*
+This is just an estimate and may require further tweaking.
+Currently using 50 KB
+*/
+#define DEFAULT_ARENA_SIZE (50 * 1024)
+
 Arena common_arena;
 
 bool common_InitArena() {
@@ -12,18 +18,13 @@ bool common_InitArena() {
 #endif
     return false;
   }
+  common_arena.offset = 0;
+  common_arena.size = DEFAULT_ARENA_SIZE;
 
   return true;
 }
 
-size_t common_AllocData(void *pData, size_t data_size) {
-  if (!pData) {
-#ifdef DEBUG
-    fprintf(stderr, "Source data is NULL.\n");
-#endif
-    return -1;
-  }
-
+size_t common_AllocData(size_t data_size) {
   if (data_size > common_arena.size ||
       common_arena.offset + data_size > common_arena.size) {
 #ifdef DEBUG
@@ -34,21 +35,28 @@ size_t common_AllocData(void *pData, size_t data_size) {
     // So that any and every subsequent alloc fails.
     return -1;
   }
-
-  memcpy(common_arena.mem + common_arena.offset, pData, data_size);
+  size_t allocated_offset = common_arena.offset;
   common_arena.offset += data_size;
 
-  return common_arena.offset;
+  return allocated_offset;
 }
 
-bool common_FetchData(size_t data_offset, size_t data_size, void *pDest) {
-  if (!pDest) {
+bool common_SetData(uint8_t *data, size_t data_offset, size_t data_size) {
+  if (data_offset > common_arena.size ||
+      data_size > common_arena.size - data_offset) {
 #ifdef DEBUG
-    fprintf(stderr, "Destination pointer is NULL.\n");
+    fprintf(stderr,
+            "Arena doesn't have the amount of memory asked to be set.\n");
 #endif
     return false;
   }
 
+  memcpy(common_arena.mem + data_offset, data, data_size);
+
+  return true;
+}
+
+uint8_t *common_FetchData(size_t data_offset, size_t data_size) {
   if (data_offset > common_arena.size ||
       data_size > common_arena.size - data_offset) {
 #ifdef DEBUG
@@ -57,7 +65,13 @@ bool common_FetchData(size_t data_offset, size_t data_size, void *pDest) {
 #endif
     return false;
   }
+  return (uint8_t *)(common_arena.mem + data_offset);
+}
 
-  memcpy(pDest, &common_arena.mem[data_offset], data_size);
-  return true;
+void common_FreeArena() {
+  if (common_arena.mem) {
+    free(common_arena.mem);
+    common_arena.mem = NULL;
+  }
+  common_arena.offset = common_arena.size = 0;
 }

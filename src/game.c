@@ -6,7 +6,7 @@ static void GetDeltaTime(uint32_t *pStart_time, uint32_t *pFrame_c,
                          double *pDelta_time);
 
 static bool InitGame(SDL_Window **pWindow, SDL_Renderer **pRenderer,
-                     Entities *pEntities);
+                     Entities **ppEntities);
 static void GameLoop(SDL_Renderer *renderer, Entities *pEntities);
 static void ExitGame(SDL_Window **pWindow, SDL_Renderer **pRenderer);
 
@@ -31,10 +31,9 @@ static void GetDeltaTime(uint32_t *pStart_time, uint32_t *pFrame_c,
 }
 
 static bool InitGame(SDL_Window **pWindow, SDL_Renderer **pRenderer,
-                     Entities *pEntities) {
-  entity_InitEntities(pEntities);
-
-  return common_InitArena() && gfx_InitSDL(pWindow, pRenderer);
+                     Entities **ppEntities) {
+  return common_InitArena() && entity_InitEntitiesHeap(ppEntities) &&
+         gfx_InitSDL(pWindow, pRenderer);
 }
 
 static void GameLoop(SDL_Renderer *renderer, Entities *pEntities) {
@@ -49,6 +48,7 @@ static void GameLoop(SDL_Renderer *renderer, Entities *pEntities) {
 
   entity_SpawnEntity(pEntities, NPC, (SDL_FRect){500, 500, 30, 30},
                      (SDL_Color){0, 0, 123, 255}, 200, 21);
+
   entity_SpawnEntity(pEntities, NPC, (SDL_FRect){250, 500, 30, 30},
                      (SDL_Color){0, 0, 123, 255}, 200, 21);
   entity_SpawnEntity(pEntities, NPC, (SDL_FRect){700, 500, 30, 30},
@@ -80,16 +80,17 @@ static void GameLoop(SDL_Renderer *renderer, Entities *pEntities) {
 }
 
 static void ExitGame(SDL_Window **pWindow, SDL_Renderer **pRenderer) {
+  common_FreeArena();
   gfx_ExitSDL(pWindow, pRenderer);
 }
 
 void Game(void) {
   SDL_Window *window = NULL;
   SDL_Renderer *renderer = NULL;
-  Entities entities;
+  Entities *pEntities = NULL;
 
-  if (InitGame(&window, &renderer, &entities)) {
-    GameLoop(renderer, &entities);
+  if (InitGame(&window, &renderer, &pEntities)) {
+    GameLoop(renderer, pEntities);
   }
   ExitGame(&window, &renderer);
 }

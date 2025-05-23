@@ -57,14 +57,10 @@ typedef struct {
   size_t offset;
 } Arena;
 
-/*
-This is just an estimate and may require further tweaking.
-Currently using 50 KB
-*/
-#define DEFAULT_ARENA_SIZE (50 * 1024)
-
 extern Arena common_arena;
 
 extern bool common_InitArena();
-extern size_t common_AllocData(void *data, size_t data_size);
-extern bool common_FetchData(size_t data_offset, size_t data_size, void *pDest);
+extern size_t common_AllocData(size_t data_size);
+extern bool common_SetData(uint8_t *data, size_t data_offset, size_t data_size);
+extern uint8_t *common_FetchData(size_t data_offset, size_t data_size);
+void common_FreeArena();

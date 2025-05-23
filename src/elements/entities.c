@@ -10,18 +10,20 @@ These are just the initial default conditions and could change as needed later.
 #define PLAYER_COLOR {BLUISH}
 // #define PLAYER_INITIAL_PHYSICAL_DATA (entity_CreatePhysicalData(1))
 
+static Entities InitEntities();
+
 static void InsertionSortWRTDimensionX(Entities *pEntities);
 static void ResolveCollision(SDL_FRect *dimension1, SDL_FRect *dimension2);
 
-void entity_CreateMeter(Meter *pMeter, int32_t max, int32_t *pCurr,
+void entity_CreateMeter(Entity_Meter *pMeter, int32_t max, int32_t *pCurr,
                         int32_t *pMin) {
   // If the pCurr is Null means that by default the meter will be full.
   // Same if no min value is given. by default its 0.
-  *pMeter = (Meter){
+  *pMeter = (Entity_Meter){
       .max = max, .curr = (pCurr) ? *pCurr : max, .min = (pMin) ? *pMin : 0};
 }
 
-void entity_ChangeMeterMax(Meter *pMeter, int32_t new_max) {
+void entity_ChangeMeterMax(Entity_Meter *pMeter, int32_t new_max) {
   if (pMeter->min >= new_max) {
 #ifdef DEBUG
     fprintf(stderr, "Can't set the new maximum to a meter as/lower than the "
@@ -36,7 +38,7 @@ void entity_ChangeMeterMax(Meter *pMeter, int32_t new_max) {
   }
 }
 
-void entity_ChangeMeterMin(Meter *pMeter, int32_t new_min) {
+void entity_ChangeMeterMin(Entity_Meter *pMeter, int32_t new_min) {
   if (new_min >= pMeter->max) {
 #ifdef DEBUG
     fprintf(stderr, "Can't set the new minimum to a meter as/higher than the "
@@ -50,7 +52,7 @@ void entity_ChangeMeterMin(Meter *pMeter, int32_t new_min) {
   }
 }
 
-void entity_ChangeMeterCurr(Meter *pMeter, int32_t new_curr) {
+void entity_ChangeMeterCurr(Entity_Meter *pMeter, int32_t new_curr) {
   if (new_curr >= pMeter->max || new_curr <= pMeter->min) {
 #ifdef DEBUG
     fprintf(stderr, "Can't set the current value of a meter beyond the defined "
@@ -61,13 +63,14 @@ void entity_ChangeMeterCurr(Meter *pMeter, int32_t new_curr) {
   pMeter->curr = new_curr;
 }
 
-void entity_InitEntities(Entities *pEntities) {
-  pEntities->entity_bounding_boxes[PLAYER_INDEX] =
-      (SDL_FRect)PLAYER_INITIAL_DIMENSION;
-  pEntities->entity_colors[PLAYER_INDEX] = (SDL_Color)PLAYER_COLOR;
-  PLAYER_INITIAL_HEALTH(&pEntities->entity_health_meters[PLAYER_INDEX]);
-  pEntities->entity_speeds[PLAYER_INDEX] = PLAYER_INITIAL_SPEED;
-  pEntities->entity_types[PLAYER_INDEX] = PLAYER;
+static Entities InitEntities() {
+  Entities entities = {0};
+
+  entities.bounding_boxes[PLAYER_INDEX] = (SDL_FRect)PLAYER_INITIAL_DIMENSION;
+  entities.colors[PLAYER_INDEX] = (SDL_Color)PLAYER_COLOR;
+  PLAYER_INITIAL_HEALTH(&entities.health_meters[PLAYER_INDEX]);
+  entities.speeds[PLAYER_INDEX] = PLAYER_INITIAL_SPEED;
+  entities.types[PLAYER_INDEX] = PLAYER;
 
   for (int32_t i = PLAYER_INDEX + 1; i < ENTITY_POOL_SIZE; i++) {
     /*
@@ -75,13 +78,45 @@ void entity_InitEntities(Entities *pEntities) {
     So that when time comes to populate, the initial indices get populated
     first.
     */
-    pEntities->entity_empty_slots.arr[i] = ENTITY_POOL_SIZE - 1 - i;
-    pEntities->entity_types[i] = NO_ENTITY;
+    entities.empty_slots.arr[i] = ENTITY_POOL_SIZE - 1 - i;
+    entities.types[i] = NO_ENTITY;
   }
-  pEntities->entity_empty_slots.len = ENTITY_POOL_SIZE - 1;
+  entities.empty_slots.len = ENTITY_POOL_SIZE - 1;
 
-  pEntities->entity_occupied_slots.len = 1;
-  pEntities->entity_occupied_slots.arr[0] = PLAYER_INDEX;
+  entities.occupied_slots.len = 1;
+  entities.occupied_slots.arr[0] = PLAYER_INDEX;
+
+  return entities;
+}
+
+bool entity_InitEntitiesHeap(Entities **ppEntities) {
+  *ppEntities = NULL;
+  size_t entities_heap_offset = common_AllocData(sizeof(Entities));
+
+  if (entities_heap_offset == (size_t)-1) {
+#ifdef DEBUG
+    fprintf(stderr, "This condition shall never be reached unless the "
+                    "DEFAULT_ARENA_SIZE is set too small. Originating from "
+                    "entity_InitEntities.\n");
+#endif
+    return false;
+  }
+
+  Entities entities = InitEntities();
+
+  if (!common_SetData((uint8_t *)(&entities), entities_heap_offset,
+                      sizeof(Entities))) {
+#ifdef DEBUG
+    fprintf(stderr, "This condition shall never be reached unless the "
+                    "DEFAULT_ARENA_SIZE is set too small. Originating from "
+                    "entity_InitEntities.\n");
+#endif
+    return false;
+  }
+  *ppEntities =
+      (Entities *)common_FetchData(entities_heap_offset, sizeof(Entities));
+
+  return true;
 }
 
 void entity_SpawnEntity(Entities *pEntities, EntityType type,
@@ -93,29 +128,30 @@ void entity_SpawnEntity(Entities *pEntities, EntityType type,
 #endif
     return;
   }
-  if (!pEntities->entity_empty_slots.len) {
+  if (!pEntities->empty_slots.len) {
 #ifdef DEBUG
     fprintf(stderr, "No free space to spawn a new entity.\n");
 #endif
     return;
   }
+
   // Pop a free index from the empty pool
   uint32_t selected_index =
-      pEntities->entity_empty_slots.arr[--pEntities->entity_empty_slots.len];
+      pEntities->empty_slots.arr[--pEntities->empty_slots.len];
   // Push the selected index into the occupied list
-  pEntities->entity_occupied_slots.arr[pEntities->entity_occupied_slots.len++] =
+  pEntities->occupied_slots.arr[pEntities->occupied_slots.len++] =
       selected_index;
 
-  pEntities->entity_types[selected_index] = type;
-  pEntities->entity_bounding_boxes[selected_index] = dimension;
-  pEntities->entity_speeds[selected_index] = speed;
-  pEntities->entity_colors[selected_index] = color;
-  entity_CreateMeter(&pEntities->entity_health_meters[selected_index],
-                     health_max, NULL, NULL);
+  pEntities->types[selected_index] = type;
+  pEntities->bounding_boxes[selected_index] = dimension;
+  pEntities->speeds[selected_index] = speed;
+  pEntities->colors[selected_index] = color;
+  entity_CreateMeter(&pEntities->health_meters[selected_index], health_max,
+                     NULL, NULL);
 }
 
 void entity_DespawnEntity(Entities *pEntities, int32_t despawn_index) {
-  if (pEntities->entity_types[despawn_index] == NO_ENTITY) {
+  if (pEntities->types[despawn_index] == NO_ENTITY) {
 #ifdef DEBUG
     fprintf(stderr, "Can't despawn an entity that doesn't exist.\n");
 #endif
@@ -128,20 +164,18 @@ void entity_DespawnEntity(Entities *pEntities, int32_t despawn_index) {
     return;
   }
 
-  pEntities->entity_types[despawn_index] = NO_ENTITY;
-  pEntities->entity_empty_slots.arr[pEntities->entity_empty_slots.len++] =
-      despawn_index;
+  pEntities->types[despawn_index] = NO_ENTITY;
+  pEntities->empty_slots.arr[pEntities->empty_slots.len++] = despawn_index;
 
-  for (int32_t i = 0; i < pEntities->entity_occupied_slots.len; i++) {
-    if (pEntities->entity_occupied_slots.arr[i] == despawn_index) {
+  for (int32_t i = 0; i < pEntities->occupied_slots.len; i++) {
+    if (pEntities->occupied_slots.arr[i] == despawn_index) {
       /*
-      Shifting the last element of the arr to the now freed up index, this is an
-      efficient way to resize the array without shifting the elements in the
-      array.
+      Shifting the last element of the arr to the now freed up index, this is
+      an efficient way to resize the array without shifting the elements in
+      the array.
       */
-      pEntities->entity_occupied_slots.arr[i] =
-          pEntities->entity_occupied_slots
-              .arr[--pEntities->entity_occupied_slots.len];
+      pEntities->occupied_slots.arr[i] =
+          pEntities->occupied_slots.arr[--pEntities->occupied_slots.len];
       break;
     }
   }
@@ -157,15 +191,15 @@ static void InsertionSortWRTDimensionX(Entities *pEntities) {
   */
   int32_t occupied1_index, occupied2_index;
 
-  for (int32_t i = 1; i < pEntities->entity_occupied_slots.len; i++) {
+  for (int32_t i = 1; i < pEntities->occupied_slots.len; i++) {
     for (int32_t j = i - 1; j >= 0; j--) {
-      occupied1_index = pEntities->entity_occupied_slots.arr[j];
-      occupied2_index = pEntities->entity_occupied_slots.arr[j + 1];
-      if (pEntities->entity_bounding_boxes[occupied1_index].x <
-          pEntities->entity_bounding_boxes[occupied2_index].x)
+      occupied1_index = pEntities->occupied_slots.arr[j];
+      occupied2_index = pEntities->occupied_slots.arr[j + 1];
+      if (pEntities->bounding_boxes[occupied1_index].x <
+          pEntities->bounding_boxes[occupied2_index].x)
         break;
-      pEntities->entity_occupied_slots.arr[j] = occupied2_index;
-      pEntities->entity_occupied_slots.arr[j + 1] = occupied1_index;
+      pEntities->occupied_slots.arr[j] = occupied2_index;
+      pEntities->occupied_slots.arr[j + 1] = occupied1_index;
     }
   }
 }
@@ -204,30 +238,30 @@ void entity_HandleCollision(Entities *pEntities) {
     Reference Article: https://leanrada.com/notes/sweep-and-prune/
   */
   int32_t occupied1_index, occupied2_index;
-  for (int32_t i = 0; i < pEntities->entity_occupied_slots.len; i++) {
-    occupied1_index = pEntities->entity_occupied_slots.arr[i];
-    for (int32_t j = i + 1; j < pEntities->entity_occupied_slots.len; j++) {
-      occupied2_index = pEntities->entity_occupied_slots.arr[j];
+  for (int32_t i = 0; i < pEntities->occupied_slots.len; i++) {
+    occupied1_index = pEntities->occupied_slots.arr[i];
+    for (int32_t j = i + 1; j < pEntities->occupied_slots.len; j++) {
+      occupied2_index = pEntities->occupied_slots.arr[j];
 
       /*
       Not colliding in X so no way they are colliding so we just break out of
       the loop. We can also do this as the array is sorted.
       */
-      if (pEntities->entity_bounding_boxes[occupied2_index].x >
-          pEntities->entity_bounding_boxes[occupied1_index].x +
-              pEntities->entity_bounding_boxes[occupied1_index].w) {
+      if (pEntities->bounding_boxes[occupied2_index].x >
+          pEntities->bounding_boxes[occupied1_index].x +
+              pEntities->bounding_boxes[occupied1_index].w) {
         break;
       }
 
-      // Checking y collisiong and resolving it also.
-      if ((pEntities->entity_bounding_boxes[occupied1_index].y <
-           pEntities->entity_bounding_boxes[occupied2_index].y +
-               pEntities->entity_bounding_boxes[occupied2_index].h) &&
-          (pEntities->entity_bounding_boxes[occupied2_index].y <
-           pEntities->entity_bounding_boxes[occupied1_index].y +
-               pEntities->entity_bounding_boxes[occupied1_index].h)) {
-        ResolveCollision(&pEntities->entity_bounding_boxes[occupied1_index],
-                         &pEntities->entity_bounding_boxes[occupied2_index]);
+      // Checking y collision and resolving it also.
+      if ((pEntities->bounding_boxes[occupied1_index].y <
+           pEntities->bounding_boxes[occupied2_index].y +
+               pEntities->bounding_boxes[occupied2_index].h) &&
+          (pEntities->bounding_boxes[occupied2_index].y <
+           pEntities->bounding_boxes[occupied1_index].y +
+               pEntities->bounding_boxes[occupied1_index].h)) {
+        ResolveCollision(&pEntities->bounding_boxes[occupied1_index],
+                         &pEntities->bounding_boxes[occupied2_index]);
       }
     }
   }

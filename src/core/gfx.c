@@ -51,12 +51,12 @@ void gfx_ExitSDL(SDL_Window **pWindow, SDL_Renderer **pRenderer) {
 }
 
 static void RenderEntities(SDL_Renderer *renderer, Entities *pEntities) {
-  for (int32_t i = 0, j = 0; i < pEntities->entity_occupied_slots.len; i++) {
-    j = pEntities->entity_occupied_slots.arr[i];
-    SDL_SetRenderDrawColor(
-        renderer, pEntities->entity_colors[j].r, pEntities->entity_colors[j].g,
-        pEntities->entity_colors[j].b, pEntities->entity_colors[j].a);
-    SDL_RenderFillRectF(renderer, &pEntities->entity_bounding_boxes[j]);
+  for (int32_t i = 0, j = 0; i < pEntities->occupied_slots.len; i++) {
+    j = pEntities->occupied_slots.arr[i];
+    SDL_SetRenderDrawColor(renderer, pEntities->colors[j].r,
+                           pEntities->colors[j].g, pEntities->colors[j].b,
+                           pEntities->colors[j].a);
+    SDL_RenderFillRectF(renderer, &pEntities->bounding_boxes[j]);
   }
 }
 
