@@ -12,7 +12,7 @@ These are just the initial default conditions and could change as needed later.
 
 static Entities InitEntities();
 
-static void InsertionSortWRTDimensionX(Entities *pEntities);
+static void InsertionSortWRTDimensionX(Entities *entities);
 static void ResolveCollision(SDL_FRect *dimension1, SDL_FRect *dimension2);
 
 void entity_CreateMeter(Entity_Meter *pMeter, int32_t max, int32_t *pCurr,
@@ -89,8 +89,8 @@ static Entities InitEntities() {
   return entities;
 }
 
-bool entity_InitEntitiesHeap(Entities **ppEntities) {
-  *ppEntities = NULL;
+bool entity_InitEntitiesHeap(Entities **pEntities) {
+  *pEntities = NULL;
   size_t entities_heap_offset = common_AllocData(sizeof(Entities));
 
   if (entities_heap_offset == (size_t)-1) {
@@ -113,13 +113,13 @@ bool entity_InitEntitiesHeap(Entities **ppEntities) {
 #endif
     return false;
   }
-  *ppEntities =
+  *pEntities =
       (Entities *)common_FetchData(entities_heap_offset, sizeof(Entities));
 
   return true;
 }
 
-void entity_SpawnEntity(Entities *pEntities, EntityType type,
+void entity_SpawnEntity(Entities *entities, EntityType type,
                         SDL_FRect dimension, SDL_Color color,
                         int32_t health_max, float speed) {
   if (type == PLAYER) {
@@ -128,7 +128,7 @@ void entity_SpawnEntity(Entities *pEntities, EntityType type,
 #endif
     return;
   }
-  if (!pEntities->empty_slots.len) {
+  if (!entities->empty_slots.len) {
 #ifdef DEBUG
     fprintf(stderr, "No free space to spawn a new entity.\n");
 #endif
@@ -137,21 +137,21 @@ void entity_SpawnEntity(Entities *pEntities, EntityType type,
 
   // Pop a free index from the empty pool
   uint32_t selected_index =
-      pEntities->empty_slots.arr[--pEntities->empty_slots.len];
+      entities->empty_slots.arr[--entities->empty_slots.len];
   // Push the selected index into the occupied list
-  pEntities->occupied_slots.arr[pEntities->occupied_slots.len++] =
+  entities->occupied_slots.arr[entities->occupied_slots.len++] =
       selected_index;
 
-  pEntities->types[selected_index] = type;
-  pEntities->bounding_boxes[selected_index] = dimension;
-  pEntities->speeds[selected_index] = speed;
-  pEntities->colors[selected_index] = color;
-  entity_CreateMeter(&pEntities->health_meters[selected_index], health_max,
+  entities->types[selected_index] = type;
+  entities->bounding_boxes[selected_index] = dimension;
+  entities->speeds[selected_index] = speed;
+  entities->colors[selected_index] = color;
+  entity_CreateMeter(&entities->health_meters[selected_index], health_max,
                      NULL, NULL);
 }
 
-void entity_DespawnEntity(Entities *pEntities, int32_t despawn_index) {
-  if (pEntities->types[despawn_index] == NO_ENTITY) {
+void entity_DespawnEntity(Entities *entities, int32_t despawn_index) {
+  if (entities->types[despawn_index] == NO_ENTITY) {
 #ifdef DEBUG
     fprintf(stderr, "Can't despawn an entity that doesn't exist.\n");
 #endif
@@ -164,24 +164,24 @@ void entity_DespawnEntity(Entities *pEntities, int32_t despawn_index) {
     return;
   }
 
-  pEntities->types[despawn_index] = NO_ENTITY;
-  pEntities->empty_slots.arr[pEntities->empty_slots.len++] = despawn_index;
+  entities->types[despawn_index] = NO_ENTITY;
+  entities->empty_slots.arr[entities->empty_slots.len++] = despawn_index;
 
-  for (int32_t i = 0; i < pEntities->occupied_slots.len; i++) {
-    if (pEntities->occupied_slots.arr[i] == despawn_index) {
+  for (int32_t i = 0; i < entities->occupied_slots.len; i++) {
+    if (entities->occupied_slots.arr[i] == despawn_index) {
       /*
       Shifting the last element of the arr to the now freed up index, this is
       an efficient way to resize the array without shifting the elements in
       the array.
       */
-      pEntities->occupied_slots.arr[i] =
-          pEntities->occupied_slots.arr[--pEntities->occupied_slots.len];
+      entities->occupied_slots.arr[i] =
+          entities->occupied_slots.arr[--entities->occupied_slots.len];
       break;
     }
   }
 }
 
-static void InsertionSortWRTDimensionX(Entities *pEntities) {
+static void InsertionSortWRTDimensionX(Entities *entities) {
   /*
   This is insertion sort. Due to the nature of how the entities will move,
   i.e., Not that much per frame maintaining the almost-sorted order.
@@ -191,15 +191,15 @@ static void InsertionSortWRTDimensionX(Entities *pEntities) {
   */
   int32_t occupied1_index, occupied2_index;
 
-  for (int32_t i = 1; i < pEntities->occupied_slots.len; i++) {
+  for (int32_t i = 1; i < entities->occupied_slots.len; i++) {
     for (int32_t j = i - 1; j >= 0; j--) {
-      occupied1_index = pEntities->occupied_slots.arr[j];
-      occupied2_index = pEntities->occupied_slots.arr[j + 1];
-      if (pEntities->bounding_boxes[occupied1_index].x <
-          pEntities->bounding_boxes[occupied2_index].x)
+      occupied1_index = entities->occupied_slots.arr[j];
+      occupied2_index = entities->occupied_slots.arr[j + 1];
+      if (entities->bounding_boxes[occupied1_index].x <
+          entities->bounding_boxes[occupied2_index].x)
         break;
-      pEntities->occupied_slots.arr[j] = occupied2_index;
-      pEntities->occupied_slots.arr[j + 1] = occupied1_index;
+      entities->occupied_slots.arr[j] = occupied2_index;
+      entities->occupied_slots.arr[j + 1] = occupied1_index;
     }
   }
 }
@@ -229,8 +229,8 @@ static void ResolveCollision(SDL_FRect *dimension1, SDL_FRect *dimension2) {
   }
 }
 
-void entity_HandleCollision(Entities *pEntities) {
-  InsertionSortWRTDimensionX(pEntities);
+void entity_HandleCollision(Entities *entities) {
+  InsertionSortWRTDimensionX(entities);
 
   /*
     Used in collision detection using a trick called:
@@ -238,30 +238,30 @@ void entity_HandleCollision(Entities *pEntities) {
     Reference Article: https://leanrada.com/notes/sweep-and-prune/
   */
   int32_t occupied1_index, occupied2_index;
-  for (int32_t i = 0; i < pEntities->occupied_slots.len; i++) {
-    occupied1_index = pEntities->occupied_slots.arr[i];
-    for (int32_t j = i + 1; j < pEntities->occupied_slots.len; j++) {
-      occupied2_index = pEntities->occupied_slots.arr[j];
+  for (int32_t i = 0; i < entities->occupied_slots.len; i++) {
+    occupied1_index = entities->occupied_slots.arr[i];
+    for (int32_t j = i + 1; j < entities->occupied_slots.len; j++) {
+      occupied2_index = entities->occupied_slots.arr[j];
 
       /*
       Not colliding in X so no way they are colliding so we just break out of
       the loop. We can also do this as the array is sorted.
       */
-      if (pEntities->bounding_boxes[occupied2_index].x >
-          pEntities->bounding_boxes[occupied1_index].x +
-              pEntities->bounding_boxes[occupied1_index].w) {
+      if (entities->bounding_boxes[occupied2_index].x >
+          entities->bounding_boxes[occupied1_index].x +
+              entities->bounding_boxes[occupied1_index].w) {
         break;
       }
 
       // Checking y collision and resolving it also.
-      if ((pEntities->bounding_boxes[occupied1_index].y <
-           pEntities->bounding_boxes[occupied2_index].y +
-               pEntities->bounding_boxes[occupied2_index].h) &&
-          (pEntities->bounding_boxes[occupied2_index].y <
-           pEntities->bounding_boxes[occupied1_index].y +
-               pEntities->bounding_boxes[occupied1_index].h)) {
-        ResolveCollision(&pEntities->bounding_boxes[occupied1_index],
-                         &pEntities->bounding_boxes[occupied2_index]);
+      if ((entities->bounding_boxes[occupied1_index].y <
+           entities->bounding_boxes[occupied2_index].y +
+               entities->bounding_boxes[occupied2_index].h) &&
+          (entities->bounding_boxes[occupied2_index].y <
+           entities->bounding_boxes[occupied1_index].y +
+               entities->bounding_boxes[occupied1_index].h)) {
+        ResolveCollision(&entities->bounding_boxes[occupied1_index],
+                         &entities->bounding_boxes[occupied2_index]);
       }
     }
   }

@@ -12,6 +12,6 @@ typedef COMMON_PACKED_ENUM {
   QUIT = 1 << 4,
 } InputFlags;
 
-extern void state_HandleState(Entities *pEntities, InputFlags input_flags,
+extern void state_HandleState(Entities *entities, InputFlags input_flags,
                               double delta_time);
 extern InputFlags GetInput();

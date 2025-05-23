@@ -43,11 +43,11 @@ extern void entity_ChangeMeterMax(Entity_Meter *pMeter, int32_t new_max);
 extern void entity_ChangeMeterMin(Entity_Meter *pMeter, int32_t new_min);
 extern void entity_ChangeMeterCurr(Entity_Meter *pMeter, int32_t new_curr);
 
-extern bool entity_InitEntitiesHeap(Entities **ppEntities);
+extern bool entity_InitEntitiesHeap(Entities **pEntities);
 
-extern void entity_SpawnEntity(Entities *pEntities, EntityType type,
+extern void entity_SpawnEntity(Entities *entities, EntityType type,
                                SDL_FRect dimension, SDL_Color color,
                                int32_t health_max, float base_speed);
-extern void entity_DespawnEntity(Entities *pEntities, int32_t despawn_index);
+extern void entity_DespawnEntity(Entities *entities, int32_t despawn_index);
 
-extern void entity_HandleCollision(Entities *pEntities);
+extern void entity_HandleCollision(Entities *entities);

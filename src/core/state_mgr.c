@@ -32,11 +32,11 @@ static void HandlePlayerMoving(SDL_FRect *pPlayer_bounding_box,
   }
 }
 
-void state_HandleState(Entities *pEntities, InputFlags input_flags,
+void state_HandleState(Entities *entities, InputFlags input_flags,
                        double delta_time) {
-  HandlePlayerMoving(&pEntities->bounding_boxes[PLAYER_INDEX],
-                     pEntities->speeds[PLAYER_INDEX], input_flags, delta_time);
-  entity_HandleCollision(pEntities);
+  HandlePlayerMoving(&entities->bounding_boxes[PLAYER_INDEX],
+                     entities->speeds[PLAYER_INDEX], input_flags, delta_time);
+  entity_HandleCollision(entities);
 }
 
 InputFlags GetInput() {

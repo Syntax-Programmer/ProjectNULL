@@ -1,7 +1,7 @@
 #include "../../include/core/gfx.h"
 #include <SDL2/SDL_image.h>
 
-static void RenderEntities(SDL_Renderer *renderer, Entities *pEntities);
+static void RenderEntities(SDL_Renderer *renderer, Entities *entities);
 
 bool gfx_InitSDL(SDL_Window **pWindow, SDL_Renderer **pRenderer) {
   if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_TIMER)) {
@@ -50,19 +50,19 @@ void gfx_ExitSDL(SDL_Window **pWindow, SDL_Renderer **pRenderer) {
   SDL_Quit();
 }
 
-static void RenderEntities(SDL_Renderer *renderer, Entities *pEntities) {
-  for (int32_t i = 0, j = 0; i < pEntities->occupied_slots.len; i++) {
-    j = pEntities->occupied_slots.arr[i];
-    SDL_SetRenderDrawColor(renderer, pEntities->colors[j].r,
-                           pEntities->colors[j].g, pEntities->colors[j].b,
-                           pEntities->colors[j].a);
-    SDL_RenderFillRectF(renderer, &pEntities->bounding_boxes[j]);
+static void RenderEntities(SDL_Renderer *renderer, Entities *entities) {
+  for (int32_t i = 0, j = 0; i < entities->occupied_slots.len; i++) {
+    j = entities->occupied_slots.arr[i];
+    SDL_SetRenderDrawColor(renderer, entities->colors[j].r,
+                           entities->colors[j].g, entities->colors[j].b,
+                           entities->colors[j].a);
+    SDL_RenderFillRectF(renderer, &entities->bounding_boxes[j]);
   }
 }
 
-void gfx_Render(SDL_Renderer *renderer, Entities *pEntities) {
+void gfx_Render(SDL_Renderer *renderer, Entities *entities) {
   SDL_RenderClear(renderer);
-  RenderEntities(renderer, pEntities);
+  RenderEntities(renderer, entities);
   SDL_SetRenderDrawColor(renderer, BLACKISH);
   SDL_RenderPresent(renderer);
 }
