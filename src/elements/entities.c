@@ -1,5 +1,13 @@
 #include "../../include/elements/entities.h"
 
+typedef struct {
+  SDL_FRect *bounding_boxes;
+  float *speeds;
+  char **entity_ids;
+  char **asset_paths;
+  SDL_Texture **assets;
+} EntityProperties;
+
 /*
 These are just the initial default conditions and could change as needed later.
 */
@@ -231,7 +239,6 @@ static void ResolveCollision(SDL_FRect *dimension1, SDL_FRect *dimension2) {
 
 void entity_HandleCollision(Entities *entities) {
   InsertionSortWRTDimensionX(entities);
-
   /*
     Used in collision detection using a trick called:
     Sort Sweep and Prune.

@@ -2,7 +2,7 @@ CC := gcc
 CFLAGS := -std=c17 -s -Wall -Wextra -Iinclude/ -Iinclude/core/*.h -IInclude/elements/*.h
 RELEASE_CFLAGS := -Werror -O3 -ffast-math
 TEST_CFLAGS := -g -DDEBUG -fsanitize=address
-LDFLAGS := -lSDL2 -lSDL2_ttf -lSDL2_image
+LDFLAGS := -lSDL2 -lSDL2_ttf -lSDL2_image -lyaml
 
 SRC_DIR := src
 BUILD_DIR := build

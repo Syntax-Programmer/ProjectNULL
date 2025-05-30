@@ -2,7 +2,7 @@
 
 #include "../common.h"
 #include "../elements/entities.h"
-#include "../elements/maps.h"
+#include "../elements/world.h"
 
 typedef COMMON_PACKED_ENUM {
   UP = 1 << 0,

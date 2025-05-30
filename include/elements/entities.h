@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../common.h"
-#include <SDL2/SDL_rect.h>
+#include <SDL2/SDL.h>
 
 #define PLAYER_INDEX 0
 #define ENTITY_POOL_SIZE 51
@@ -10,6 +10,9 @@ typedef struct {
   int32_t curr, max, min;
 } Entity_Meter;
 
+/*
+TODO: This needs to go after the introduction of yaml.
+*/
 typedef COMMON_PACKED_ENUM{NO_ENTITY, PLAYER, NPC} EntityType;
 
 typedef struct {
@@ -26,6 +29,7 @@ typedef struct {
   SDL_Color colors[ENTITY_POOL_SIZE];
   EntityType types[ENTITY_POOL_SIZE];
   float speeds[ENTITY_POOL_SIZE];
+  // TODO: This is unused
   Entity_Meter health_meters[ENTITY_POOL_SIZE];
   /*
   Indices which can new entities spawn into.

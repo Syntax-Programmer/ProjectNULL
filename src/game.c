@@ -2,6 +2,10 @@
 #include "../include/core/gfx.h"
 #include "../include/core/state_mgr.h"
 
+#define MAX_FPS 60
+#define MIN_DT_MS (1000.0 / MAX_FPS)
+#define MIN_DT_SEC (MIN_DT_MS / 1000.0)
+
 static void GetDeltaTime(uint32_t *pStart_time, uint32_t *pFrame_c,
                          double *pDelta_time);
 

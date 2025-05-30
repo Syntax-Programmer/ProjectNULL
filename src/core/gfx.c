@@ -1,6 +1,10 @@
 #include "../../include/core/gfx.h"
 #include <SDL2/SDL_image.h>
 
+#define GAME_TITLE "Game"
+#define WINDOW_WIDTH 1200
+#define WINDOW_HEIGHT 800
+
 static void RenderEntities(SDL_Renderer *renderer, Entities *entities);
 
 bool gfx_InitSDL(SDL_Window **pWindow, SDL_Renderer **pRenderer) {

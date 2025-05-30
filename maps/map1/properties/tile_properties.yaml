@@ -1,0 +1,27 @@
+grass:
+  walkable: true
+  swimmable: false
+  breakable: false
+  intractable: false
+  asset_path: "assets/"
+
+rock:
+  walkable: false
+  swimmable: false
+  breakable: true
+  intractable: true
+  asset_path: "assets/"
+
+water:
+  walkable: false
+  swimmable: true
+  breakable: false
+  intractable: false
+  asset_path: "assets/"
+
+path:
+  walkable: true
+  swimmable: false
+  breakable: true
+  intractable: false
+  asset_path: "assets/"
