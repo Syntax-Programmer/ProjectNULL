@@ -193,6 +193,7 @@ size_t common_ReallocData(size_t original_data_offset, size_t data_size,
 #ifdef DEBUG
     fprintf(stderr, "Cannot reallocate to the same size.\n");
 #endif
+    return original_data_offset;
   }
 
   /*
