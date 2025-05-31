@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../common.h"
+#include "../utility/arena.h"
 #include <SDL2/SDL.h>
 
 #define PLAYER_INDEX 0

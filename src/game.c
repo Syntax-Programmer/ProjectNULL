@@ -36,7 +36,7 @@ static void GetDeltaTime(uint32_t *pStart_time, uint32_t *pFrame_c,
 
 static bool InitGame(SDL_Window **pWindow, SDL_Renderer **pRenderer,
                      Entities **pEntities) {
-  return common_InitArena() && entity_InitEntitiesHeap(pEntities) &&
+  return arena_Init() && entity_InitEntitiesHeap(pEntities) &&
          gfx_InitSDL(pWindow, pRenderer);
 }
 
@@ -84,7 +84,7 @@ static void GameLoop(SDL_Renderer *renderer, Entities *entities) {
 }
 
 static void ExitGame(SDL_Window **pWindow, SDL_Renderer **pRenderer) {
-  common_FreeArena();
+  arena_Free();
   gfx_ExitSDL(pWindow, pRenderer);
 }
 

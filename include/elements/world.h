@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../common.h"
+#include "../utility/arena.h"
 #include <SDL2/SDL.h>
 
 // #define TILE_SIZE 50
@@ -12,8 +13,8 @@
 //     TILE_SWIMMABLE = 1 << 1,
 //     /*
 //     This allows for any thing to be breakable or not regardless of
-//     type. This allows a more flexible approach to handle break-ability, somewhat
-//     in line with games like minecraft.
+//     type. This allows a more flexible approach to handle break-ability,
+//     somewhat in line with games like minecraft.
 //     */
 //     TILE_BREAKABLE = 1 << 2,
 //     /*
@@ -24,13 +25,13 @@
 // } TilePropFlags;
 
 // /*
-// This entire struct other than the SDL_Texture * will always persist in memory,
-// the SDL_Texture will be dynamically loaded/unloaded as we need.
+// This entire struct other than the SDL_Texture * will always persist in
+// memory, the SDL_Texture will be dynamically loaded/unloaded as we need.
 // */
 // typedef struct {
 //   /*
-//   All the metadata of all the assets will be loaded at the start, so no need to
-//   keep check of len as it will be a full array of len = size.
+//   All the metadata of all the assets will be loaded at the start, so no need
+//   to keep check of len as it will be a full array of len = size.
 //   */
 //   size_t size;
 //   /*
@@ -52,13 +53,14 @@
 // */
 // typedef struct {
 //     /*
-//     Actual tile area, It is a rect for arbitrary tile size, It is a FRect due to
-//     consistency reasons.
+//     Actual tile area, It is a rect for arbitrary tile size, It is a FRect due
+//     to consistency reasons.
 //     */
 //     SDL_FRect *tile_bounding_boxes;
 //     /*
-//     This tile ID gives the reference index to look up into struct TileProperties,
-//     which tells us the properties of the tile and the asset it uses.
+//     This tile ID gives the reference index to look up into struct
+//     TileProperties, which tells us the properties of the tile and the asset
+//     it uses.
 //     */
 //     uint32_t *tile_id;
 //     size_t len;

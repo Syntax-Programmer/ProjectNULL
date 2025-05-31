@@ -1,4 +1,4 @@
-#include "../include/common.h"
+#include "../../include/utility/arena.h"
 #include <stdlib.h>
 
 /*
@@ -29,7 +29,7 @@ typedef struct {
   int32_t free_spots_len;
 } Arena;
 
-static Arena common_arena;
+static Arena arena;
 
 /*
 Some algorithms in this file, such as AddArenaFreeSpot, could be optimized if
@@ -49,9 +49,9 @@ static bool AddArenaFreeSpot(size_t old_offset, size_t old_size) {
   // An attempt to merge empty block if they are adjacent.
   int32_t left = -1, right = -1;
 
-  for (int32_t i = 0; i < common_arena.free_spots_len; i++) {
-    size_t spot_offset = common_arena.free_spots_arr[i].offset;
-    size_t spot_size = common_arena.free_spots_arr[i].size;
+  for (int32_t i = 0; i < arena.free_spots_len; i++) {
+    size_t spot_offset = arena.free_spots_arr[i].offset;
+    size_t spot_size = arena.free_spots_arr[i].size;
 
     if (spot_offset == old_offset && spot_size == old_size) {
 #ifdef DEBUG
@@ -68,67 +68,67 @@ static bool AddArenaFreeSpot(size_t old_offset, size_t old_size) {
   }
 
   if (left != -1 && right != -1) {
-    common_arena.free_spots_arr[left].size +=
-        old_size + common_arena.free_spots_arr[right].size;
-    common_arena.free_spots_arr[right] =
-        common_arena.free_spots_arr[--common_arena.free_spots_len];
+    arena.free_spots_arr[left].size +=
+        old_size + arena.free_spots_arr[right].size;
+    arena.free_spots_arr[right] =
+        arena.free_spots_arr[--arena.free_spots_len];
     return true;
   } else if (left != -1) {
-    common_arena.free_spots_arr[left].size += old_size;
+    arena.free_spots_arr[left].size += old_size;
     return true;
   } else if (right != -1) {
-    common_arena.free_spots_arr[right].offset = old_offset;
-    common_arena.free_spots_arr[right].size += old_size;
+    arena.free_spots_arr[right].offset = old_offset;
+    arena.free_spots_arr[right].size += old_size;
     return true;
-  } else if (common_arena.free_spots_len == RESERVED_FREE_SPOTS_ARR_SIZE) {
+  } else if (arena.free_spots_len == RESERVED_FREE_SPOTS_ARR_SIZE) {
 #ifdef DEBUG
     fprintf(stderr, "WARNING: Memory is too fragmented, no further "
                     "reallocation possible.\n");
 #endif
     return false;
   }
-  common_arena.free_spots_arr[common_arena.free_spots_len].offset = old_offset;
-  common_arena.free_spots_arr[common_arena.free_spots_len].size = old_size;
-  common_arena.free_spots_len++;
+  arena.free_spots_arr[arena.free_spots_len].offset = old_offset;
+  arena.free_spots_arr[arena.free_spots_len].size = old_size;
+  arena.free_spots_len++;
 
   return true;
 }
 
-bool common_InitArena() {
-  common_arena.mem = malloc(DEFAULT_ARENA_SIZE);
-  if (!common_arena.mem) {
+bool arena_Init() {
+  arena.mem = malloc(DEFAULT_ARENA_SIZE);
+  if (!arena.mem) {
 #ifdef DEBUG
     fprintf(stderr, "Unable to initialize arena memory for the game.\n");
 #endif
     return false;
   }
 
-  common_arena.free_spots_len = 0;
-  common_arena.free_spots_arr = (FreeSpots *)common_arena.mem;
-  memset(common_arena.free_spots_arr, 0, RESERVED_FREE_SPOTS_BYTES);
+  arena.free_spots_len = 0;
+  arena.free_spots_arr = (FreeSpots *)arena.mem;
+  memset(arena.free_spots_arr, 0, RESERVED_FREE_SPOTS_BYTES);
   // Initialize first free spot to be the rest of the arena
-  common_arena.free_spots_arr[0].size =
+  arena.free_spots_arr[0].size =
       DEFAULT_ARENA_SIZE - RESERVED_FREE_SPOTS_BYTES;
-  common_arena.free_spots_arr[0].offset = RESERVED_FREE_SPOTS_BYTES;
-  common_arena.free_spots_len++;
+  arena.free_spots_arr[0].offset = RESERVED_FREE_SPOTS_BYTES;
+  arena.free_spots_len++;
 
   return true;
 }
 
-size_t common_AllocData(size_t data_size) {
+size_t arena_AllocData(size_t data_size) {
   size_t empty_offset = (size_t)-1;
 
-  for (int32_t i = 0; i < common_arena.free_spots_len; i++) {
-    if (common_arena.free_spots_arr[i].size == data_size) {
-      empty_offset = common_arena.free_spots_arr[i].offset;
+  for (int32_t i = 0; i < arena.free_spots_len; i++) {
+    if (arena.free_spots_arr[i].size == data_size) {
+      empty_offset = arena.free_spots_arr[i].offset;
       // Packing the array for no dead bytes in the middle of the arr.
-      common_arena.free_spots_arr[i] =
-          common_arena.free_spots_arr[--common_arena.free_spots_len];
+      arena.free_spots_arr[i] =
+          arena.free_spots_arr[--arena.free_spots_len];
       break;
-    } else if (common_arena.free_spots_arr[i].size > data_size) {
-      empty_offset = common_arena.free_spots_arr[i].offset;
-      common_arena.free_spots_arr[i].size -= data_size;
-      common_arena.free_spots_arr[i].offset += data_size;
+    } else if (arena.free_spots_arr[i].size > data_size) {
+      empty_offset = arena.free_spots_arr[i].offset;
+      arena.free_spots_arr[i].size -= data_size;
+      arena.free_spots_arr[i].offset += data_size;
       break;
     }
   }
@@ -144,7 +144,7 @@ size_t common_AllocData(size_t data_size) {
   return empty_offset;
 }
 
-bool common_SetData(uint8_t *data, size_t data_offset, size_t data_size) {
+bool arena_SetData(uint8_t *data, size_t data_offset, size_t data_size) {
   if (data_offset > DEFAULT_ARENA_SIZE ||
       data_size > DEFAULT_ARENA_SIZE - data_offset) {
 #ifdef DEBUG
@@ -162,7 +162,7 @@ bool common_SetData(uint8_t *data, size_t data_offset, size_t data_size) {
     return false;
   }
 
-  memcpy(common_arena.mem + data_offset, data, data_size);
+  memcpy(arena.mem + data_offset, data, data_size);
 
   return true;
 }
@@ -171,7 +171,7 @@ bool common_SetData(uint8_t *data, size_t data_offset, size_t data_size) {
 If this returns (size_t)-1 means the original data is at its place and not
 freed.
 */
-size_t common_ReallocData(size_t original_data_offset, size_t data_size,
+size_t arena_ReallocData(size_t original_data_offset, size_t data_size,
                           size_t new_size) {
   if (original_data_offset > DEFAULT_ARENA_SIZE ||
       data_size > DEFAULT_ARENA_SIZE - original_data_offset) {
@@ -201,17 +201,17 @@ size_t common_ReallocData(size_t original_data_offset, size_t data_size,
   always finds a new location. This is a problem.
   */
   size_t new_offset;
-  if ((new_offset = common_AllocData(new_size)) == (size_t)-1) {
+  if ((new_offset = arena_AllocData(new_size)) == (size_t)-1) {
     return new_offset;
   }
-  memcpy(common_FetchData(new_offset, new_size),
-         common_FetchData(original_data_offset, data_size), data_size);
+  memcpy(arena_FetchData(new_offset, new_size),
+         arena_FetchData(original_data_offset, data_size), data_size);
   AddArenaFreeSpot(original_data_offset, data_size);
 
   return new_offset;
 }
 
-uint8_t *common_FetchData(size_t data_offset, size_t data_size) {
+uint8_t *arena_FetchData(size_t data_offset, size_t data_size) {
   if (data_offset > DEFAULT_ARENA_SIZE ||
       data_size > DEFAULT_ARENA_SIZE - data_offset) {
 #ifdef DEBUG
@@ -229,14 +229,14 @@ uint8_t *common_FetchData(size_t data_offset, size_t data_size) {
     return NULL;
   }
 
-  return (uint8_t *)(common_arena.mem + data_offset);
+  return (uint8_t *)(arena.mem + data_offset);
 }
 
-void common_FreeArena() {
-  if (common_arena.mem) {
-    free(common_arena.mem);
-    common_arena.mem = NULL;
+void arena_Free() {
+  if (arena.mem) {
+    free(arena.mem);
+    arena.mem = NULL;
   }
-  common_arena.free_spots_arr = NULL;
-  common_arena.free_spots_len = 0;
+  arena.free_spots_arr = NULL;
+  arena.free_spots_len = 0;
 }

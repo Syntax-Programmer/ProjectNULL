@@ -10,8 +10,9 @@ BUILD_DIR := build
 SRCS := $(wildcard $(SRC_DIR)/*.c)
 CORE_SRCS := $(wildcard $(SRC_DIR)/core/*.c)
 ELEMENTS_SRCS := $(wildcard $(SRC_DIR)/elements/*.c)
+UTILITY_SRCS := $(wildcard $(SRC_DIR)/utility/*.c)
 
-ALL_SRCS = $(SRCS) $(CORE_SRCS) $(ELEMENTS_SRCS)
+ALL_SRCS = $(SRCS) $(CORE_SRCS) $(ELEMENTS_SRCS) $(UTILITY_SRCS)
 
 RELEASE_OUTPUT := $(BUILD_DIR)/Game
 TEST_OUTPUT := $(BUILD_DIR)/test

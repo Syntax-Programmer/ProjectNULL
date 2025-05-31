@@ -38,9 +38,3 @@ This macro ensures the enum is stored as a single `uint8_t`.
 #else
 #define COMMON_PACKED_ENUM enum __attribute__((__packed__))
 #endif // defined(_MSC_VER) && !defined(__clang__)
-
-extern bool common_InitArena();
-extern size_t common_AllocData(size_t data_size);
-extern bool common_SetData(uint8_t *data, size_t data_offset, size_t data_size);
-extern uint8_t *common_FetchData(size_t data_offset, size_t data_size);
-extern void common_FreeArena();

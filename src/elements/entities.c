@@ -99,7 +99,7 @@ static Entities InitEntities() {
 
 bool entity_InitEntitiesHeap(Entities **pEntities) {
   *pEntities = NULL;
-  size_t entities_heap_offset = common_AllocData(sizeof(Entities));
+  size_t entities_heap_offset = arena_AllocData(sizeof(Entities));
 
   if (entities_heap_offset == (size_t)-1) {
 #ifdef DEBUG
@@ -112,7 +112,7 @@ bool entity_InitEntitiesHeap(Entities **pEntities) {
 
   Entities entities = InitEntities();
 
-  if (!common_SetData((uint8_t *)(&entities), entities_heap_offset,
+  if (!arena_SetData((uint8_t *)(&entities), entities_heap_offset,
                       sizeof(Entities))) {
 #ifdef DEBUG
     fprintf(stderr, "This condition shall never be reached unless the "
@@ -122,7 +122,7 @@ bool entity_InitEntitiesHeap(Entities **pEntities) {
     return false;
   }
   *pEntities =
-      (Entities *)common_FetchData(entities_heap_offset, sizeof(Entities));
+      (Entities *)arena_FetchData(entities_heap_offset, sizeof(Entities));
 
   return true;
 }
