@@ -55,7 +55,7 @@ void gfx_ExitSDL(SDL_Window **pWindow, SDL_Renderer **pRenderer) {
 }
 
 static void RenderEntities(SDL_Renderer *renderer, Entities *entities) {
-  for (int32_t i = 0, j = 0; i < entities->occupied_slots.len; i++) {
+  for (size_t i = 0, j = 0; i < entities->occupied_slots.len; i++) {
     j = entities->occupied_slots.arr[i];
     SDL_SetRenderDrawColor(renderer, entities->colors[j].r,
                            entities->colors[j].g, entities->colors[j].b,

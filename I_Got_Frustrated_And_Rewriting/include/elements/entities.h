@@ -18,7 +18,7 @@ typedef COMMON_PACKED_ENUM{NO_ENTITY, PLAYER, NPC} EntityType;
 
 typedef struct {
   int32_t arr[ENTITY_POOL_SIZE];
-  int32_t len;
+  size_t len;
 } Entity_SlotsArray;
 
 typedef struct {

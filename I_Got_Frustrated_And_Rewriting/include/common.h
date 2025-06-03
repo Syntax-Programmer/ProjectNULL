@@ -1,8 +1,8 @@
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <stdbool.h>
 #include <string.h>
 
 #define WHITE 255, 255, 255, 255
@@ -17,19 +17,19 @@
 #define CLEAR_FLAG(var, flag) ((var) &= ~(flag))
 #define TOGGLE_FLAG(var, flag) ((var) ^= (flag))
 /*
- * WARNING: Do not change this to something like
- *
- * #define HAS_FLAG(var, flag) ((var) & (flag))
- *
- * In functions like static void HandleMoving() it will break movement due to
- * optimized approach to calculating movement components.
- */
+WARNING: Do not change this to something like
+
+#define HAS_FLAG(var, flag) ((var) & (flag))
+
+In functions like static void HandleMoving() it will break movement due to
+optimized approach to calculating movement components.
+*/
 #define HAS_FLAG(var, flag) (((var) & (flag)) != 0)
 
 /*
- * A more memory-efficient enum for when the total number of entries is ≤ 255.
- * This macro ensures the enum is stored as a single `uint8_t`.
- */
+A more memory-efficient enum for when the total number of entries is ≤ 255.
+This macro ensures the enum is stored as a single `uint8_t`.
+*/
 #if defined(_MSC_VER) && !defined(__clang__)
 #define COMMON_PACKED_ENUM __pragma(pack(push, 1)) enum __pragma(pack(pop))
 #else
@@ -37,13 +37,3 @@
 #endif // defined(_MSC_VER) && !defined(__clang__)
 
 #define DEFAULT_STR_BUFFER_SIZE (256)
-
-typedef COMMON_PACKED_ENUM{SUCCESS, FAILURE} StatusCode;
-
-#ifdef DEBUG
-#define LOG(...) printf(__VA_ARGS__);
-#else
-#define LOG(...)
-#endif
-
-#define DEFAULT_CHAR_BUFF_SIZE (256)

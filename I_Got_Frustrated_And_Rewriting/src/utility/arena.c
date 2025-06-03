@@ -26,7 +26,7 @@ typedef struct {
   uint8_t *mem;
   // Will an array of size RESERVED_FREE_SPOTS_ARR_SIZE
   FreeSpots *free_spots_arr;
-  int32_t free_spots_len;
+  size_t free_spots_len;
 } Arena;
 
 static Arena arena;
@@ -47,9 +47,9 @@ static bool AddArenaFreeSpot(size_t old_offset, size_t old_size);
 
 static bool AddArenaFreeSpot(size_t old_offset, size_t old_size) {
   // An attempt to merge empty block if they are adjacent.
-  int32_t left = -1, right = -1;
+  size_t left = -1, right = -1;
 
-  for (int32_t i = 0; i < arena.free_spots_len; i++) {
+  for (size_t i = 0; i < arena.free_spots_len; i++) {
     size_t spot_offset = arena.free_spots_arr[i].offset;
     size_t spot_size = arena.free_spots_arr[i].size;
 
@@ -70,8 +70,7 @@ static bool AddArenaFreeSpot(size_t old_offset, size_t old_size) {
   if (left != -1 && right != -1) {
     arena.free_spots_arr[left].size +=
         old_size + arena.free_spots_arr[right].size;
-    arena.free_spots_arr[right] =
-        arena.free_spots_arr[--arena.free_spots_len];
+    arena.free_spots_arr[right] = arena.free_spots_arr[--arena.free_spots_len];
     return true;
   } else if (left != -1) {
     arena.free_spots_arr[left].size += old_size;
@@ -107,8 +106,7 @@ bool arena_Init() {
   arena.free_spots_arr = (FreeSpots *)arena.mem;
   memset(arena.free_spots_arr, 0, RESERVED_FREE_SPOTS_BYTES);
   // Initialize first free spot to be the rest of the arena
-  arena.free_spots_arr[0].size =
-      DEFAULT_ARENA_SIZE - RESERVED_FREE_SPOTS_BYTES;
+  arena.free_spots_arr[0].size = DEFAULT_ARENA_SIZE - RESERVED_FREE_SPOTS_BYTES;
   arena.free_spots_arr[0].offset = RESERVED_FREE_SPOTS_BYTES;
   arena.free_spots_len++;
 
@@ -116,14 +114,13 @@ bool arena_Init() {
 }
 
 size_t arena_AllocData(size_t data_size) {
-  size_t empty_offset = (size_t)-1;
+  size_t empty_offset = INVALID_OFFSET;
 
-  for (int32_t i = 0; i < arena.free_spots_len; i++) {
+  for (size_t i = 0; i < arena.free_spots_len; i++) {
     if (arena.free_spots_arr[i].size == data_size) {
       empty_offset = arena.free_spots_arr[i].offset;
       // Packing the array for no dead bytes in the middle of the arr.
-      arena.free_spots_arr[i] =
-          arena.free_spots_arr[--arena.free_spots_len];
+      arena.free_spots_arr[i] = arena.free_spots_arr[--arena.free_spots_len];
       break;
     } else if (arena.free_spots_arr[i].size > data_size) {
       empty_offset = arena.free_spots_arr[i].offset;
@@ -133,7 +130,7 @@ size_t arena_AllocData(size_t data_size) {
     }
   }
 
-  if (empty_offset == (size_t)-1) {
+  if (empty_offset == INVALID_OFFSET) {
 #ifdef DEBUG
     fprintf(stderr,
             "Arena memory can't account for the data of the given size: %zu.",
@@ -172,7 +169,7 @@ If this returns (size_t)-1 means the original data is at its place and not
 freed.
 */
 size_t arena_ReallocData(size_t original_data_offset, size_t data_size,
-                          size_t new_size) {
+                         size_t new_size) {
   if (original_data_offset > DEFAULT_ARENA_SIZE ||
       data_size > DEFAULT_ARENA_SIZE - original_data_offset) {
 #ifdef DEBUG
@@ -180,14 +177,14 @@ size_t arena_ReallocData(size_t original_data_offset, size_t data_size,
         stderr,
         "Arena doesn't have the amount of memory asked to be reallocated.\n");
 #endif
-    return (size_t)-1;
+    return INVALID_OFFSET;
   }
   if (original_data_offset < RESERVED_FREE_SPOTS_BYTES) {
 #ifdef DEBUG
     fprintf(stderr, "WARNING: Can't reallocate reserved memory for tracking "
                     "free spaces.\n");
 #endif
-    return (size_t)-1;
+    return INVALID_OFFSET;
   }
   if (new_size == data_size) {
 #ifdef DEBUG
@@ -195,13 +192,33 @@ size_t arena_ReallocData(size_t original_data_offset, size_t data_size,
 #endif
     return original_data_offset;
   }
+  // Treating this as a deallocation call.
+  if (new_size == 0) {
+#ifdef DEBUG
+    fprintf(stderr, "Reallocation with size 0 is treated as free.\n");
+#endif
+    if (!AddArenaFreeSpot(original_data_offset, data_size)) {
+#ifdef DEBUG
+      fprintf(stderr,
+              "Deallocation of data at offset %zu with size %zu failed. Data "
+              "is still persistent.\n",
+              original_data_offset, data_size);
+#endif
+      return original_data_offset;
+    }
+    /*
+    It is up to the caller to appropriately handle dangling pointer after free
+    call has been issued.
+    */
+    return INVALID_OFFSET;
+  }
 
   /*
   TODO: This doesn't currently grow the existing array if space is available. It
   always finds a new location. This is a problem.
   */
   size_t new_offset;
-  if ((new_offset = arena_AllocData(new_size)) == (size_t)-1) {
+  if ((new_offset = arena_AllocData(new_size)) == INVALID_OFFSET) {
     return new_offset;
   }
   memcpy(arena_FetchData(new_offset, new_size),

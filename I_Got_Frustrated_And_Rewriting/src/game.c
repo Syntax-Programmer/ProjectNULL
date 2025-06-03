@@ -1,20 +1,18 @@
 #include "../include/game.h"
-#include "../include/engine/gfx.h"
-#include "../include/engine/state.h"
-#include "../include/utils/arena.h"
+#include "../include/core/gfx.h"
+#include "../include/core/state_mgr.h"
 
-#define MAX_FPS 144
+#define MAX_FPS 60
 #define MIN_DT_MS (1000.0 / MAX_FPS)
 #define MIN_DT_SEC (MIN_DT_MS / 1000.0)
 
 static void GetDeltaTime(uint32_t *pStart_time, uint32_t *pFrame_c,
                          double *pDelta_time);
 
-static StatusCode InitGame(Arena **pArena, SDL_Window **pWindow,
-                           SDL_Renderer **pRenderer);
-static void GameLoop(Arena *arena, SDL_Renderer *renderer);
-static void ExitGame(Arena *arena, SDL_Window **pWindow,
-                     SDL_Renderer **pRenderer);
+static bool InitGame(SDL_Window **pWindow, SDL_Renderer **pRenderer,
+                     Entities **pEntities);
+static void GameLoop(SDL_Renderer *renderer, Entities *entities);
+static void ExitGame(SDL_Window **pWindow, SDL_Renderer **pRenderer);
 
 static void GetDeltaTime(uint32_t *pStart_time, uint32_t *pFrame_c,
                          double *pDelta_time) {
@@ -36,18 +34,13 @@ static void GetDeltaTime(uint32_t *pStart_time, uint32_t *pFrame_c,
   }
 }
 
-static StatusCode InitGame(Arena **pArena, SDL_Window **pWindow,
-                           SDL_Renderer **pRenderer) {
-  *pArena = arena_Create();
-
-  if (!(*pArena)) {
-    return FAILURE;
-  }
-
-  return gfx_InitSDL(pWindow, pRenderer);
+static bool InitGame(SDL_Window **pWindow, SDL_Renderer **pRenderer,
+                     Entities **pEntities) {
+  return arena_Init() && entity_InitEntitiesHeap(pEntities) &&
+         gfx_InitSDL(pWindow, pRenderer);
 }
 
-static void GameLoop(Arena *arena, SDL_Renderer *renderer) {
+static void GameLoop(SDL_Renderer *renderer, Entities *entities) {
   InputFlags input_flags = 0;
   /*
   Using a trick called frame counting, where instead of getting delta time each
@@ -57,7 +50,19 @@ static void GameLoop(Arena *arena, SDL_Renderer *renderer) {
   uint32_t frame_c = 0, fps_calc_start_time = SDL_GetTicks(),
            fps_limiter_time = SDL_GetTicks();
 
-  while (1) {
+  entity_SpawnEntity(entities, NPC, (SDL_FRect){500, 500, 30, 30},
+                     (SDL_Color){0, 0, 123, 255}, 200, 21);
+
+  entity_SpawnEntity(entities, NPC, (SDL_FRect){250, 500, 30, 30},
+                     (SDL_Color){0, 0, 123, 255}, 200, 21);
+  entity_SpawnEntity(entities, NPC, (SDL_FRect){700, 500, 30, 30},
+                     (SDL_Color){0, 0, 123, 255}, 200, 21);
+  entity_SpawnEntity(entities, NPC, (SDL_FRect){100, 500, 30, 30},
+                     (SDL_Color){0, 0, 123, 255}, 200, 21);
+  entity_SpawnEntity(entities, NPC, (SDL_FRect){3, 100, 50, 50},
+                     (SDL_Color){0, 0, 123, 255}, 200, 21);
+
+  while (true) {
     GetDeltaTime(&fps_calc_start_time, &frame_c, &delta_time);
     frame_c++;
 
@@ -72,25 +77,24 @@ static void GameLoop(Arena *arena, SDL_Renderer *renderer) {
     */
     if (SDL_GetTicks() - fps_limiter_time >= MIN_DT_MS) {
       fps_limiter_time = SDL_GetTicks();
-      state_HandleState(input_flags, delta_time);
-      gfx_Render(renderer);
+      state_HandleState(entities, input_flags, delta_time);
+      gfx_Render(renderer, entities);
     }
   }
 }
 
-static void ExitGame(Arena *arena, SDL_Window **pWindow,
-                     SDL_Renderer **pRenderer) {
-  arena_Delete(arena);
+static void ExitGame(SDL_Window **pWindow, SDL_Renderer **pRenderer) {
+  arena_Free();
   gfx_ExitSDL(pWindow, pRenderer);
 }
 
-void Game() {
-  Arena *arena = NULL;
+void Game(void) {
   SDL_Window *window = NULL;
   SDL_Renderer *renderer = NULL;
+  Entities *entities = NULL;
 
-  if (InitGame(&arena, &window, &renderer) == SUCCESS) {
-    GameLoop(arena, renderer);
+  if (InitGame(&window, &renderer, &entities)) {
+    GameLoop(renderer, entities);
   }
-  ExitGame(arena, &window, &renderer);
+  ExitGame(&window, &renderer);
 }

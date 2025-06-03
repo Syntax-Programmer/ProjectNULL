@@ -1,5 +1,5 @@
 CC := gcc
-CFLAGS := -std=c17 -s -Wall -Wextra -Iinclude/ -Iinclude/core/*.h -IInclude/elements/*.h
+CFLAGS := -std=c17 -s -Wall -Wextra -Iinclude/ -Iinclude/engine/*.h -Iinclude/elements/*.h -Iinclude/utils/*.h
 RELEASE_CFLAGS := -Werror -O3 -ffast-math
 TEST_CFLAGS := -g -DDEBUG -fsanitize=address
 LDFLAGS := -lSDL2 -lSDL2_ttf -lSDL2_image -lyaml
@@ -8,11 +8,11 @@ SRC_DIR := src
 BUILD_DIR := build
 
 SRCS := $(wildcard $(SRC_DIR)/*.c)
-CORE_SRCS := $(wildcard $(SRC_DIR)/core/*.c)
+CORE_SRCS := $(wildcard $(SRC_DIR)/engine/*.c)
 ELEMENTS_SRCS := $(wildcard $(SRC_DIR)/elements/*.c)
-UTILITY_SRCS := $(wildcard $(SRC_DIR)/utility/*.c)
+UTILS_SRCS := $(wildcard $(SRC_DIR)/utils/*.c)
 
-ALL_SRCS = $(SRCS) $(CORE_SRCS) $(ELEMENTS_SRCS) $(UTILITY_SRCS)
+ALL_SRCS = $(SRCS) $(CORE_SRCS) $(ELEMENTS_SRCS) $(UTILS_SRCS)
 
 RELEASE_OUTPUT := $(BUILD_DIR)/Game
 TEST_OUTPUT := $(BUILD_DIR)/test

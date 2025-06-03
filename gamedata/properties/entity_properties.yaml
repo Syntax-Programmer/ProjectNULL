@@ -1,5 +1,4 @@
 player:
   speed: 150
-  health: 100
   bounding_box: [0, 0, 50, 50]
   asset_path: "assets/"

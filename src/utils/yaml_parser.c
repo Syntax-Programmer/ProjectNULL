@@ -1,6 +1,4 @@
-#include "../../include/utility/yaml_parser.h"
-#include <stdbool.h>
-#include <stdio.h>
+#include "../../include/utils/yaml_parser.h"
 #include <yaml.h>
 
 /*
@@ -79,7 +77,8 @@ bool yaml_ParserParse(const char *yaml_file,
   yaml_parser_set_input_file(&parser, fh);
 
   bool expecting_value = false, in_sequence = false;
-  char last_key[256] = {0}, id[256] = {0};
+  char last_key[DEFAULT_STR_BUFFER_SIZE] = {0},
+       id[DEFAULT_STR_BUFFER_SIZE] = {0};
 
   while (true) {
     if (!yaml_parser_parse(&parser, &event)) {
@@ -118,6 +117,11 @@ bool yaml_ParserParse(const char *yaml_file,
       expecting_value = false;
     } else if (event.type == YAML_SCALAR_EVENT) {
       char *val = (char *)event.data.scalar.value;
+      /*
+      Current design decision to ignore if the allocator returns false. Because
+      it can also mean that the required data it needs is currently not
+      provided.
+      */
       if (in_sequence) {
         /*
         No need to change any flags, continue providing new vals with same key
