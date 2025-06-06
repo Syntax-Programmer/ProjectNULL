@@ -4,6 +4,9 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <assert.h>
 
 #define WHITE 255, 255, 255, 255
 #define BLACK 0, 0, 0, 255
@@ -36,14 +39,16 @@
 #define COMMON_PACKED_ENUM enum __attribute__((__packed__))
 #endif // defined(_MSC_VER) && !defined(__clang__)
 
-#define DEFAULT_STR_BUFFER_SIZE (256)
+#define DEFAULT_STR_BUFFER_SIZE (64)
 
 typedef COMMON_PACKED_ENUM{SUCCESS, FAILURE} StatusCode;
 
 #ifdef DEBUG
-#define LOG(...) printf(__VA_ARGS__);
+#define LOG(...) printf("Log: "); printf(__VA_ARGS__); printf("\n");
 #else
 #define LOG(...)
 #endif
 
-#define DEFAULT_CHAR_BUFF_SIZE (256)
+#define MATCH_TOKEN(tok, value) if (!strcmp(tok, value))
+#define STR_TO_BOOL(str)                                                       \
+  ((!strcasecmp(str, "true") || !strcmp(str, "1")) ? true : false)

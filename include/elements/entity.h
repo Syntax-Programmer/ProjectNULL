@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../../include/utils/hashmap.h"
 #include "../common.h"
 #include <SDL2/SDL.h>
 
@@ -18,7 +19,8 @@
 typedef struct EntityProps EntityProps;
 
 typedef struct {
-  char name[MAX_SPAWN_COUNT][DEFAULT_CHAR_BUFF_SIZE];
+  // This will also be the len of MAX_SPAWN_COUNT.
+ // StrHashmap *names;
   SDL_FRect bounding_boxes[MAX_SPAWN_COUNT];
   uint16_t hp[MAX_SPAWN_COUNT];
   struct {

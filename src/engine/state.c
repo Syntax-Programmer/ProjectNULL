@@ -45,7 +45,8 @@ InputFlags GetInput() {
 
   while (SDL_PollEvent(&event)) {
     if (event.type == SDL_QUIT) {
-      input_flags = QUIT;
+      SET_FLAG(input_flags, QUIT);
+      return input_flags;
     }
   }
 

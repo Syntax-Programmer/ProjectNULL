@@ -6,9 +6,10 @@
 
 typedef struct Arena Arena;
 
-extern Arena *arena_Create(void);
-extern void arena_Delete(Arena *arena);
-extern uint8_t *arena_AllocAndFetch(Arena *arena, size_t data_size);
-extern uint8_t *arena_ReallocAndFetch(Arena *arena, uint8_t *old_data,
+extern StatusCode arena_Create(void);
+extern void arena_Delete(void);
+extern uint8_t *arena_AllocAndFetch(size_t data_size);
+extern uint8_t *arena_ReallocAndFetch(uint8_t *old_data,
                                       size_t old_size, size_t new_size);
-extern void arena_Reset(Arena *arena);
+extern void arena_Reset();
+extern void arena_Dump();

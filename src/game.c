@@ -10,11 +10,9 @@
 static void GetDeltaTime(uint32_t *pStart_time, uint32_t *pFrame_c,
                          double *pDelta_time);
 
-static StatusCode InitGame(Arena **pArena, SDL_Window **pWindow,
-                           SDL_Renderer **pRenderer);
-static void GameLoop(Arena *arena, SDL_Renderer *renderer);
-static void ExitGame(Arena *arena, SDL_Window **pWindow,
-                     SDL_Renderer **pRenderer);
+static StatusCode InitGame(SDL_Window **pWindow, SDL_Renderer **pRenderer);
+static void GameLoop(SDL_Renderer *renderer);
+static void ExitGame(SDL_Window **pWindow, SDL_Renderer **pRenderer);
 
 static void GetDeltaTime(uint32_t *pStart_time, uint32_t *pFrame_c,
                          double *pDelta_time) {
@@ -36,18 +34,11 @@ static void GetDeltaTime(uint32_t *pStart_time, uint32_t *pFrame_c,
   }
 }
 
-static StatusCode InitGame(Arena **pArena, SDL_Window **pWindow,
-                           SDL_Renderer **pRenderer) {
-  *pArena = arena_Create();
-
-  if (!(*pArena)) {
-    return FAILURE;
-  }
-
-  return gfx_InitSDL(pWindow, pRenderer);
+static StatusCode InitGame(SDL_Window **pWindow, SDL_Renderer **pRenderer) {
+  return arena_Create() || gfx_InitSDL(pWindow, pRenderer);
 }
 
-static void GameLoop(Arena *arena, SDL_Renderer *renderer) {
+static void GameLoop(SDL_Renderer *renderer) {
   InputFlags input_flags = 0;
   /*
   Using a trick called frame counting, where instead of getting delta time each
@@ -78,19 +69,33 @@ static void GameLoop(Arena *arena, SDL_Renderer *renderer) {
   }
 }
 
-static void ExitGame(Arena *arena, SDL_Window **pWindow,
-                     SDL_Renderer **pRenderer) {
-  arena_Delete(arena);
+static void ExitGame(SDL_Window **pWindow, SDL_Renderer **pRenderer) {
+  arena_Delete();
   gfx_ExitSDL(pWindow, pRenderer);
 }
 
 void Game() {
-  Arena *arena = NULL;
   SDL_Window *window = NULL;
   SDL_Renderer *renderer = NULL;
 
-  if (InitGame(&arena, &window, &renderer) == SUCCESS) {
-    GameLoop(arena, renderer);
+  // if (InitGame(&window, &renderer) == SUCCESS) {
+  //   GameLoop(renderer);
+  // }
+  // ExitGame(&window, &renderer);
+
+  arena_Create();
+
+  arena_Dump();
+  StrHashmap *map = hash_InitStrHashMap();
+  arena_Dump();
+
+  FixedSizeString str;
+  for (int32_t i = 0; i < 100; i++) {
+    snprintf(str, DEFAULT_STR_BUFFER_SIZE, "%d%c%d", i, i, i);
+    hash_AddStrToMap(map, str);
+    printf("i: %d, Stored Index: %d \n", i, hash_FetchHashIndexFromMap(map, str));
   }
-  ExitGame(arena, &window, &renderer);
+
+  arena_Dump();
+
 }
