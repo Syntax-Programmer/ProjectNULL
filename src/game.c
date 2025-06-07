@@ -78,24 +78,8 @@ void Game() {
   SDL_Window *window = NULL;
   SDL_Renderer *renderer = NULL;
 
-  // if (InitGame(&window, &renderer) == SUCCESS) {
-  //   GameLoop(renderer);
-  // }
-  // ExitGame(&window, &renderer);
-
-  arena_Create();
-
-  arena_Dump();
-  StrHashmap *map = hash_InitStrHashMap();
-  arena_Dump();
-
-  FixedSizeString str;
-  for (int32_t i = 0; i < 100; i++) {
-    snprintf(str, DEFAULT_STR_BUFFER_SIZE, "%d%c%d", i, i, i);
-    hash_AddStrToMap(map, str);
-    printf("i: %d, Stored Index: %d \n", i, hash_FetchHashIndexFromMap(map, str));
+  if (InitGame(&window, &renderer) == SUCCESS) {
+    GameLoop(renderer);
   }
-
-  arena_Dump();
-
+  ExitGame(&window, &renderer);
 }

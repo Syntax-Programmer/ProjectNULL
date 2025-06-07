@@ -9,7 +9,7 @@
 
 #define METADATA_SIZE (FREE_SPOTS_LEN_SIZE + FREE_SPOTS_SIZE)
 
-// 20 KB of total space + metadata size.
+// 25 KB of total space + metadata size.
 #define DEFAULT_ARENA_SIZE (METADATA_SIZE + 20 * 1024)
 
 typedef struct {
@@ -126,6 +126,7 @@ static StatusCode AddFreeSpot(size_t offset, size_t size, int32_t left_index,
   } else {
     return FAILURE;
   }
+
   return SUCCESS;
 }
 
@@ -143,14 +144,37 @@ uint8_t *arena_ReallocAndFetch(uint8_t *old_data, size_t old_size,
                                size_t new_size) {
   assert(arena);
   if (!old_data) {
-    LOG("Can't reallocate for a NULL memory pointer.");
+    LOG("Can't reallocate for a NULL memory pointer. WARNING: Sometimes this "
+        "is intended behaviour so not always an error msg.");
     return NULL;
   }
   size_t old_offset = old_data - arena->memory;
 
-  if (old_offset < METADATA_SIZE ||
-      old_offset > DEFAULT_ARENA_SIZE - METADATA_SIZE ||
-      old_offset + old_size > DEFAULT_ARENA_SIZE - METADATA_SIZE) {
+  /*
+   * To Dear devs of the future. The arena offsets are started from arena memory
+   * start and not from writable memory.
+   * I spent a whole day debugging why arena was not allocating memory when it
+   * clearly had enough memory. The issue was detailed further:
+   *
+   * Old approach:
+   * if (old_offset < METADATA_SIZE || old_offset > DEFAULT_ARENA_SIZE
+   * - METADATA_SIZE || old_offset + old_size > DEFAULT_ARENA_SIZE -
+   * METADATA_SIZE);
+   *
+   * New approach:
+   * if (old_offset < METADATA_SIZE || old_offset > DEFAULT_ARENA_SIZE ||
+   *     old_offset + old_size > DEFAULT_ARENA_SIZE);
+   *
+   * You see the problem? By doing "-METADATA_SIZE", I was implying that the
+   * offsets start from the writable portion of the arena and not the start,
+   * which is obviously wrong and doing this capped off the storage amount
+   * early.
+   *
+   * How stupid I was: I was thinking it was invalid offset but my mind
+   * didn't ponder that the system didn't seg fault when I wrote to it.
+   */
+  if (old_offset < METADATA_SIZE || old_offset > DEFAULT_ARENA_SIZE ||
+      old_offset + old_size > DEFAULT_ARENA_SIZE) {
     LOG("Invalid data/data-size provided for reallocation.\n");
     return NULL;
   }
@@ -203,14 +227,14 @@ uint8_t *arena_ReallocAndFetch(uint8_t *old_data, size_t old_size,
   }
 
   // No growing possible, have to reallocate and add the original to free spots
-  uint8_t *new_offset = arena_AllocAndFetch(new_size);
-  if (!new_offset) {
+  uint8_t *new_data = arena_AllocAndFetch(new_size);
+  if (!new_data) {
     return NULL;
   }
-  memcpy(new_offset, old_data, old_size);
+  memmove(new_data, old_data, old_size);
   AddFreeSpot(old_offset, old_size, left_index, right_index);
 
-  return new_offset;
+  return new_data;
 }
 
 void arena_Reset() {
@@ -219,16 +243,15 @@ void arena_Reset() {
   arena->available_spots_len = 1;
 
   arena->available_spots = (FreeSpots *)(arena->memory + FREE_SPOTS_OFFSET);
-  arena->available_spots[0] =
-      (FreeSpots){.offset = FREE_SPOTS_OFFSET + FREE_SPOTS_SIZE,
-                  .size = DEFAULT_ARENA_SIZE - METADATA_SIZE};
+  arena->available_spots[0] = (FreeSpots){
+      .offset = METADATA_SIZE, .size = DEFAULT_ARENA_SIZE - METADATA_SIZE};
 }
 
 void arena_Dump() {
   assert(arena);
   printf("\n\nArena Status\n");
   for (size_t i = 0; i < arena->available_spots_len; i++) {
-    printf("Free Spots: Size: %ld Offset: %ld\n",
+    printf("Free Spots: Size: %zu Offset: %zu\n",
            arena->available_spots[i].size, arena->available_spots[i].offset);
   }
 }

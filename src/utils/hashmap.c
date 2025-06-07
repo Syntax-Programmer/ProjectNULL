@@ -12,8 +12,8 @@
 #define PERTURB_SHIFT (5)
 #define LOAD_FACTOR (0.75)
 
-#define EMPTY_INDEX (UINT32_MAX)
-#define TOMBSTONE_INDEX (UINT32_MAX - 1)
+#define EMPTY_INDEX (UINT64_MAX)
+#define TOMBSTONE_INDEX (UINT64_MAX - 1)
 
 /*
  * Hash function: XXH3_64bits from the xxHash family by Cyan4973
@@ -28,6 +28,11 @@
 /*
  * This is a abridged implementation of python's general dict class, aiming to
  * use somewhat the same principal modified to this specific use case.
+ *
+ * During testing It was figured out:
+ * For a hashmap with 500 elements, this implementation takes about 40 kb.
+ * For a hashmap with 100 elements, this implementation takes about 8.9 kb.
+ * No reason for the stats, just wanted to keep it as a record.
  */
 struct StrHashmap {
   /*
@@ -56,7 +61,7 @@ struct StrHashmap {
    * deleted. The deleted index will be used in the probing algorithm to not
    * stop searching early giving false negatives.
    */
-  uint32_t *indices;
+  uint64_t *indices;
   /*
    * This maps to indices array to store hashes to the strings it has been
    * already calculated for. This avoids the re-calculating of hashes when
@@ -87,7 +92,7 @@ StrHashmap *hash_InitStrHashMap() {
   }
 
   hashmap->indices =
-      (uint32_t *)arena_AllocAndFetch(sizeof(uint32_t) * MIN_HASH_BUCKET_SIZE);
+      (uint64_t *)arena_AllocAndFetch(sizeof(uint64_t) * MIN_HASH_BUCKET_SIZE);
   hashmap->hashes =
       (uint64_t *)arena_AllocAndFetch(sizeof(uint64_t) * MIN_HASH_BUCKET_SIZE);
   hashmap->string_arr = (FixedSizeString *)arena_AllocAndFetch(
@@ -96,7 +101,7 @@ StrHashmap *hash_InitStrHashMap() {
   if (!hashmap->indices || !hashmap->hashes || !hashmap->string_arr) {
     LOG("Can't allocate memory for StrHashmap.");
     arena_ReallocAndFetch((uint8_t *)hashmap->indices,
-                          sizeof(FixedSizeString) * MIN_HASH_BUCKET_SIZE, 0);
+                          sizeof(uint64_t) * MIN_HASH_BUCKET_SIZE, 0);
     arena_ReallocAndFetch((uint8_t *)hashmap->hashes,
                           sizeof(uint64_t) * MIN_HASH_BUCKET_SIZE, 0);
     arena_ReallocAndFetch((uint8_t *)hashmap->string_arr,
@@ -109,16 +114,16 @@ StrHashmap *hash_InitStrHashMap() {
   hashmap->indices_capacity = hashmap->str_hash_arr_capacity =
       MIN_HASH_BUCKET_SIZE;
   // This will set each index to EMPTY as memset works per byte.
-  memset(hashmap->indices, 0xFF, sizeof(uint32_t) * hashmap->indices_capacity);
+  memset(hashmap->indices, 0xFF, sizeof(uint64_t) * hashmap->indices_capacity);
 
   return hashmap;
 }
 
 static StatusCode ResizeHashMapIndicesArr(StrHashmap *hashmap) {
   assert(hashmap);
-  uint32_t *new_indices = (uint32_t *)arena_ReallocAndFetch(
-      (uint8_t *)hashmap->indices, hashmap->indices_capacity * sizeof(uint32_t),
-      hashmap->indices_capacity * 2 * sizeof(uint32_t));
+  uint64_t *new_indices = (uint64_t *)arena_ReallocAndFetch(
+      (uint8_t *)hashmap->indices, hashmap->indices_capacity * sizeof(uint64_t),
+      hashmap->indices_capacity * 2 * sizeof(uint64_t));
   if (!new_indices) {
     LOG("Can't resize the indices array. Future failure may be imminent.")
     return FAILURE;
@@ -127,7 +132,7 @@ static StatusCode ResizeHashMapIndicesArr(StrHashmap *hashmap) {
   hashmap->indices = new_indices;
   hashmap->indices_capacity *= 2;
   // This will set each index to EMPTY as memset works per byte.
-  memset(hashmap->indices, 0xFF, sizeof(uint32_t) * hashmap->indices_capacity);
+  memset(hashmap->indices, 0xFF, sizeof(uint64_t) * hashmap->indices_capacity);
 
   // Rehashing each string.
   uint64_t mask = hashmap->indices_capacity - 1;
@@ -196,18 +201,18 @@ StatusCode hash_AddStrToMap(StrHashmap *hashmap, FixedSizeString key) {
     ResizeHashMapIndicesArr(hashmap);
   }
   if (hashmap->add_count == hashmap->str_hash_arr_capacity) {
-    ResizeHashMapStrHashArr(hashmap);
+      ResizeHashMapStrHashArr(hashmap);
   }
   if (hashmap->add_count == hashmap->str_hash_arr_capacity ||
       hashmap->add_count == hashmap->indices_capacity) {
-    LOG("Hashmap is filled completely because previous resize attempt failed."
+    LOG("Hashmap is filled completely because previous resize attempt failed. "
         "Can't add anymore data.");
     return FAILURE;
   }
 
   uint64_t mask = hashmap->indices_capacity - 1, hash = STR_HASHER(key);
   uint64_t perturb = hash, i = perturb & mask;
-  uint32_t arr_index;
+  uint64_t arr_index;
   while (hashmap->indices[i] != EMPTY_INDEX &&
          hashmap->indices[i] != TOMBSTONE_INDEX) {
     arr_index = hashmap->indices[i];
@@ -228,7 +233,7 @@ StatusCode hash_AddStrToMap(StrHashmap *hashmap, FixedSizeString key) {
   return SUCCESS;
 }
 
-uint32_t hash_FetchHashIndexFromMap(StrHashmap *hashmap, FixedSizeString key) {
+uint64_t hash_FetchHashIndexFromMap(StrHashmap *hashmap, FixedSizeString key) {
   assert(hashmap);
   /*
    * This is python like open list indexed hash map.
@@ -237,25 +242,26 @@ uint32_t hash_FetchHashIndexFromMap(StrHashmap *hashmap, FixedSizeString key) {
    */
   uint64_t mask = hashmap->indices_capacity - 1, hash = STR_HASHER(key);
   uint64_t perturb = hash, i = perturb & mask;
-  uint32_t arr_index;
+  uint64_t arr_index;
   while ((arr_index = hashmap->indices[i]) != EMPTY_INDEX) {
     MATCH_TOKEN(hashmap->string_arr[arr_index], key) { return i; }
     i = (PERTURB_CONST * i + 1 + perturb) & mask;
     perturb >>= PERTURB_SHIFT;
   }
-  return UINT32_MAX;
+
+  return EMPTY_INDEX;
 }
 
 StatusCode hash_DeleteStrFromMap(StrHashmap *hashmap, FixedSizeString key) {
   assert(hashmap);
-  uint32_t i;
-  if ((i = hash_FetchHashIndexFromMap(hashmap, key)) != UINT32_MAX) {
-    hashmap->add_count--;
-    uint32_t j = hash_FetchHashIndexFromMap(
-        hashmap, hashmap->string_arr[hashmap->add_count]);
-    uint32_t i_str_hash_index = hashmap->indices[i],
-             j_str_hash_index = hashmap->add_count;
+  uint64_t i;
 
+  if ((i = hash_FetchHashIndexFromMap(hashmap, key)) != EMPTY_INDEX) {
+    hashmap->add_count--;
+    uint64_t j = hash_FetchHashIndexFromMap(
+        hashmap, hashmap->string_arr[hashmap->add_count]);
+    uint64_t i_str_hash_index = hashmap->indices[i],
+             j_str_hash_index = hashmap->add_count;
     hashmap->indices[j] = hashmap->indices[i];
     snprintf(hashmap->string_arr[i_str_hash_index], DEFAULT_STR_BUFFER_SIZE,
              "%s", hashmap->string_arr[j_str_hash_index]);
@@ -264,5 +270,6 @@ StatusCode hash_DeleteStrFromMap(StrHashmap *hashmap, FixedSizeString key) {
     hashmap->indices[i] = TOMBSTONE_INDEX;
     return SUCCESS;
   }
+
   return FAILURE;
 }

@@ -7,6 +7,6 @@ typedef struct StrHashmap StrHashmap;
 
 extern StrHashmap *hash_InitStrHashMap();
 extern StatusCode hash_AddStrToMap(StrHashmap *hashmap, FixedSizeString key);
-extern uint32_t hash_FetchHashIndexFromMap(StrHashmap *hashmap,
+extern uint64_t hash_FetchHashIndexFromMap(StrHashmap *hashmap,
                                            FixedSizeString key);
 extern StatusCode hash_DeleteStrFromMap(StrHashmap *hashmap, FixedSizeString key);
