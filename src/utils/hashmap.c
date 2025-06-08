@@ -26,13 +26,14 @@
 #define STR_HASHER(str) (uint64_t)XXH3_64bits(str, strlen(str))
 
 /*
+ * TODO: Currently this hashmap doesn't shrink on bulk deletion of entries. Not
+ * implementing it rn as it will not be needed rn. This is a future addition to
+ * ponder upon.
+ */
+
+/*
  * This is a abridged implementation of python's general dict class, aiming to
  * use somewhat the same principal modified to this specific use case.
- *
- * During testing It was figured out:
- * For a hashmap with 500 elements, this implementation takes about 40 kb.
- * For a hashmap with 100 elements, this implementation takes about 8.9 kb.
- * No reason for the stats, just wanted to keep it as a record.
  */
 struct StrHashmap {
   /*
@@ -81,8 +82,8 @@ struct StrHashmap {
   FixedSizeString *string_arr;
 };
 
-static StatusCode ResizeHashMapIndicesArr(StrHashmap *hashmap);
-static StatusCode ResizeHashMapStrHashArr(StrHashmap *hashmap);
+static StatusCode GrowHashMapIndicesArr(StrHashmap *hashmap);
+static StatusCode GrowHashMapStrHashArr(StrHashmap *hashmap);
 
 StrHashmap *hash_InitStrHashMap() {
   StrHashmap *hashmap = (StrHashmap *)arena_AllocAndFetch(sizeof(StrHashmap));
@@ -119,7 +120,7 @@ StrHashmap *hash_InitStrHashMap() {
   return hashmap;
 }
 
-static StatusCode ResizeHashMapIndicesArr(StrHashmap *hashmap) {
+static StatusCode GrowHashMapIndicesArr(StrHashmap *hashmap) {
   assert(hashmap);
   uint64_t *new_indices = (uint64_t *)arena_ReallocAndFetch(
       (uint8_t *)hashmap->indices, hashmap->indices_capacity * sizeof(uint64_t),
@@ -148,7 +149,7 @@ static StatusCode ResizeHashMapIndicesArr(StrHashmap *hashmap) {
   return SUCCESS;
 }
 
-static StatusCode ResizeHashMapStrHashArr(StrHashmap *hashmap) {
+static StatusCode GrowHashMapStrHashArr(StrHashmap *hashmap) {
   assert(hashmap);
   uint64_t *new_hashes = (uint64_t *)arena_ReallocAndFetch(
       (uint8_t *)hashmap->hashes,
@@ -198,10 +199,10 @@ static StatusCode ResizeHashMapStrHashArr(StrHashmap *hashmap) {
 StatusCode hash_AddStrToMap(StrHashmap *hashmap, FixedSizeString key) {
   assert(hashmap);
   if (hashmap->add_count >= hashmap->indices_capacity * LOAD_FACTOR) {
-    ResizeHashMapIndicesArr(hashmap);
+    GrowHashMapIndicesArr(hashmap);
   }
   if (hashmap->add_count == hashmap->str_hash_arr_capacity) {
-      ResizeHashMapStrHashArr(hashmap);
+    GrowHashMapStrHashArr(hashmap);
   }
   if (hashmap->add_count == hashmap->str_hash_arr_capacity ||
       hashmap->add_count == hashmap->indices_capacity) {

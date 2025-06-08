@@ -10,7 +10,7 @@
 #define METADATA_SIZE (FREE_SPOTS_LEN_SIZE + FREE_SPOTS_SIZE)
 
 // 25 KB of total space + metadata size.
-#define DEFAULT_ARENA_SIZE (METADATA_SIZE + 20 * 1024)
+#define DEFAULT_ARENA_SIZE (METADATA_SIZE + (25 * 1024))
 
 typedef struct {
   size_t offset, size;
@@ -102,6 +102,7 @@ uint8_t *arena_AllocAndFetch(size_t data_size) {
 static StatusCode AddFreeSpot(size_t offset, size_t size, int32_t left_index,
                               int32_t right_index) {
   assert(arena);
+  assert(size != 3488);
   /*
    * This has a chance to disrupt the sorting, but this method is always called
    * after sorting so it won't matter.
@@ -249,9 +250,15 @@ void arena_Reset() {
 
 void arena_Dump() {
   assert(arena);
+
+  size_t sum = 0;
+
   printf("\n\nArena Status\n");
   for (size_t i = 0; i < arena->available_spots_len; i++) {
     printf("Free Spots: Size: %zu Offset: %zu\n",
            arena->available_spots[i].size, arena->available_spots[i].offset);
+    sum += arena->available_spots[i].size;
   }
+  printf("Total arena free space: %zu bytes\n", sum);
+  printf("Total free block: %zu\n\n", arena->available_spots_len);
 }
