@@ -3,10 +3,11 @@
 #include "../common.h"
 
 typedef char FixedSizeString[DEFAULT_STR_BUFFER_SIZE];
-typedef struct StrHashmap StrHashmap;
+typedef struct StrIntHashmap StrIntHashmap;
 
-extern StrHashmap *hash_InitStrHashMap();
-extern StatusCode hash_AddStrToMap(StrHashmap *hashmap, FixedSizeString key);
-extern uint64_t hash_FetchHashIndexFromMap(StrHashmap *hashmap,
-                                           FixedSizeString key);
-extern StatusCode hash_DeleteStrFromMap(StrHashmap *hashmap, FixedSizeString key);
+extern StrIntHashmap *hashmap_Init();
+extern StatusCode hashmap_AddEntry(StrIntHashmap *hashmap, FixedSizeString key,
+                                   int64_t val);
+extern int64_t hashmap_FetchValue(StrIntHashmap *hashmap, FixedSizeString key);
+extern StatusCode hashmap_DeleteEntry(StrIntHashmap *hashmap,
+                                      FixedSizeString key);

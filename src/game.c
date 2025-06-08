@@ -2,6 +2,7 @@
 #include "../include/engine/gfx.h"
 #include "../include/engine/state.h"
 #include "../include/utils/arena.h"
+#include <cstdio>
 
 #define MAX_FPS 144
 #define MIN_DT_MS (1000.0 / MAX_FPS)

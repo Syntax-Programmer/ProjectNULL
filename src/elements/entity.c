@@ -2,7 +2,7 @@
 #include "../../include/utils/arena.h"
 
 struct EntityProps {
-  //StrHashmap *names;
+  StrIntHashmap *names;
   uint16_t *speeds;
   uint16_t *healths;
   bool *is_intractable;
@@ -20,8 +20,6 @@ void entity_GetProps(FixedSizeString name, uint16_t *pSpeed,
 /*
  * #include "../../include/elements/entities.h"
  #include "../../include/utility/yaml_parser.h"
- #include <asm-generic/errno.h>
- #include <stdlib.h>
 
  #define ENTITY_PROPERTIES_MIN_SIZE (8)
  #define BOUNDING_BOXES_PROPS_MIN_SIZE                                          \
