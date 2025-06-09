@@ -1,4 +1,5 @@
 #include "../../include/utils/arena.h"
+#include <string.h>
 
 #define FREE_SPOTS_LEN_OFFSET (0)
 #define FREE_SPOTS_LEN_SIZE (sizeof(size_t))
@@ -44,7 +45,7 @@ static Arena *arena;
 static StatusCode AddFreeSpot(size_t offset, size_t size, int32_t left_index,
                               int32_t right_index);
 
-StatusCode arena_Create(void) {
+StatusCode arena_Init(void) {
   arena = malloc(sizeof(Arena));
   if (!arena) {
     LOG("Unable to initialize the arena struct.");
@@ -74,7 +75,7 @@ void arena_Delete() {
   }
 }
 
-uint8_t *arena_AllocAndFetch(size_t data_size) {
+uint8_t *arena_Alloc(size_t data_size) {
   assert(arena);
   uint8_t *allocated_location = NULL;
 
@@ -95,6 +96,8 @@ uint8_t *arena_AllocAndFetch(size_t data_size) {
   if (!allocated_location) {
     LOG("Couldn't find appropriate memory chunk to allocate.");
   }
+  // Calloc
+  memset(allocated_location, 0, data_size);
 
   return allocated_location;
 }
@@ -141,8 +144,7 @@ static StatusCode AddFreeSpot(size_t offset, size_t size, int32_t left_index,
  * If this returns NULL, it means original data is preserved, and it can't
  * reallocate more memory for whatever reason.
  */
-uint8_t *arena_ReallocAndFetch(uint8_t *old_data, size_t old_size,
-                               size_t new_size) {
+uint8_t *arena_Realloc(uint8_t *old_data, size_t old_size, size_t new_size) {
   assert(arena);
   if (!old_data) {
     LOG("Can't reallocate for a NULL memory pointer. WARNING: Sometimes this "
@@ -225,10 +227,12 @@ uint8_t *arena_ReallocAndFetch(uint8_t *old_data, size_t old_size,
         return old_data;
       }
     }
+    // Callocing the new space.
+    memset(old_data + old_size, 0, new_size - old_size);
   }
 
   // No growing possible, have to reallocate and add the original to free spots
-  uint8_t *new_data = arena_AllocAndFetch(new_size);
+  uint8_t *new_data = arena_Alloc(new_size);
   if (!new_data) {
     return NULL;
   }

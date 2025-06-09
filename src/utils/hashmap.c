@@ -1,6 +1,5 @@
 #include "../../include/utils/hashmap.h"
 #include "../../include/utils/arena.h"
-#include <stdint.h>
 #include <xxhash.h>
 
 /*
@@ -37,7 +36,7 @@
  */
 
 typedef struct {
-  FixedSizeString key;
+  String key;
   int64_t val;
   uint64_t hash;
 } HashmapEntries;
@@ -51,7 +50,7 @@ struct StrIntHashmap {
    * A counter of how many times we added to the hash array. This will also
    * double as a sort of len as we aim to make a perfect hash algorithm.
    */
-  size_t add_count;
+  size_t len;
   /*
    * This shall always be a power of 2 to take advantage of the probing
    * algorithm effectively.
@@ -68,7 +67,7 @@ struct StrIntHashmap {
    * hashmap entries to represent what is stored where. This will be the
    * size of the capacity of the hashmap and will be resized if its about ~70%
    * filled.
-   * It will contain either a UINT32_MAX to indicate that the index is empty
+   * It will contain either a UINT64_MAX to indicate that the index is empty
    * and UINT32_MAX - 1 to indicate the index was occupied but now its
    * deleted. The deleted index will be used in the probing algorithm to not
    * stop searching early giving false negatives.
@@ -84,34 +83,34 @@ struct StrIntHashmap {
 static StatusCode GrowHashmapStructure(StrIntHashmap *hashmap);
 static StatusCode GrowHashmapEntries(StrIntHashmap *hashmap);
 static void FetchStructureAndEntryIndex(StrIntHashmap *hashmap,
-                                        FixedSizeString key,
+                                        String key,
                                         uint64_t *pStructure_index,
                                         uint64_t *pEntry_index);
 
 StrIntHashmap *hashmap_Init() {
   StrIntHashmap *hashmap =
-      (StrIntHashmap *)arena_AllocAndFetch(sizeof(StrIntHashmap));
+      (StrIntHashmap *)arena_Alloc(sizeof(StrIntHashmap));
   if (!hashmap) {
     LOG("Can't allocate memory for StrIntHashmap.");
     return NULL;
   }
 
   hashmap->hashmap_structure =
-      (uint64_t *)arena_AllocAndFetch(sizeof(uint64_t) * MIN_HASH_BUCKET_SIZE);
-  hashmap->hashmap_entries = (HashmapEntries *)arena_AllocAndFetch(
+      (uint64_t *)arena_Alloc(sizeof(uint64_t) * MIN_HASH_BUCKET_SIZE);
+  hashmap->hashmap_entries = (HashmapEntries *)arena_Alloc(
       sizeof(HashmapEntries) * MIN_HASH_BUCKET_SIZE);
 
   if (!hashmap->hashmap_structure || !hashmap->hashmap_entries) {
     LOG("Can't allocate memory for StrIntHashmap.");
-    arena_ReallocAndFetch((uint8_t *)hashmap->hashmap_structure,
+    arena_Realloc((uint8_t *)hashmap->hashmap_structure,
                           sizeof(uint64_t) * MIN_HASH_BUCKET_SIZE, 0);
-    arena_ReallocAndFetch((uint8_t *)hashmap->hashmap_entries,
+    arena_Realloc((uint8_t *)hashmap->hashmap_entries,
                           sizeof(HashmapEntries) * MIN_HASH_BUCKET_SIZE, 0);
-    arena_ReallocAndFetch((uint8_t *)hashmap, sizeof(StrIntHashmap), 0);
+    arena_Realloc((uint8_t *)hashmap, sizeof(StrIntHashmap), 0);
     return NULL;
   }
 
-  hashmap->add_count = 0;
+  hashmap->len = 0;
   hashmap->hashmap_capacity = hashmap->hashmap_entries_capacity =
       MIN_HASH_BUCKET_SIZE;
   // This will set each index to EMPTY as memset works per byte.
@@ -123,12 +122,12 @@ StrIntHashmap *hashmap_Init() {
 
 static StatusCode GrowHashmapStructure(StrIntHashmap *hashmap) {
   assert(hashmap);
-  uint64_t *new_indices = (uint64_t *)arena_ReallocAndFetch(
+  uint64_t *new_indices = (uint64_t *)arena_Realloc(
       (uint8_t *)hashmap->hashmap_structure,
       hashmap->hashmap_capacity * sizeof(uint64_t),
       hashmap->hashmap_capacity * 2 * sizeof(uint64_t));
   if (!new_indices) {
-    LOG("Can't resize the indices array. Future failure may be imminent.")
+    LOG("Can't resize the hashmap array. Future failure may be imminent.")
     return FAILURE;
   }
 
@@ -140,7 +139,7 @@ static StatusCode GrowHashmapStructure(StrIntHashmap *hashmap) {
 
   // Rehashing each string.
   uint64_t mask = hashmap->hashmap_capacity - 1;
-  for (size_t i = 0; i < hashmap->add_count; i++) {
+  for (size_t i = 0; i < hashmap->len; i++) {
     uint64_t perturb = hashmap->hashmap_entries[i].hash, j = perturb & mask;
     while (hashmap->hashmap_structure[j] != EMPTY_INDEX) {
       PROBER(j, perturb, mask);
@@ -153,14 +152,14 @@ static StatusCode GrowHashmapStructure(StrIntHashmap *hashmap) {
 
 static StatusCode GrowHashmapEntries(StrIntHashmap *hashmap) {
   assert(hashmap);
-  HashmapEntries *new_entries = (HashmapEntries *)arena_ReallocAndFetch(
+  HashmapEntries *new_entries = (HashmapEntries *)arena_Realloc(
       (uint8_t *)hashmap->hashmap_entries,
       hashmap->hashmap_entries_capacity * sizeof(HashmapEntries),
       (hashmap->hashmap_entries_capacity + MIN_HASH_BUCKET_SIZE) *
           sizeof(HashmapEntries));
 
   if (!new_entries) {
-    LOG("Can't resize the string and hashes array. Future failure may be "
+    LOG("Can't resize the hashmap entries array. Future failure may be "
         "imminent.")
     return FAILURE;
   }
@@ -171,18 +170,18 @@ static StatusCode GrowHashmapEntries(StrIntHashmap *hashmap) {
   return SUCCESS;
 }
 
-StatusCode hashmap_AddEntry(StrIntHashmap *hashmap, FixedSizeString key,
+StatusCode hashmap_AddEntry(StrIntHashmap *hashmap, String key,
                             int64_t val) {
   assert(hashmap);
   // No failure on growing failure due to still being some space left.
-  if (hashmap->add_count >= hashmap->hashmap_capacity * LOAD_FACTOR) {
+  if (hashmap->len >= hashmap->hashmap_capacity * LOAD_FACTOR) {
     GrowHashmapStructure(hashmap);
   }
-  if (hashmap->add_count == hashmap->hashmap_entries_capacity) {
+  if (hashmap->len == hashmap->hashmap_entries_capacity) {
     GrowHashmapEntries(hashmap);
   }
-  if (hashmap->add_count == hashmap->hashmap_entries_capacity ||
-      hashmap->add_count == hashmap->hashmap_capacity) {
+  if (hashmap->len == hashmap->hashmap_entries_capacity ||
+      hashmap->len == hashmap->hashmap_capacity) {
     LOG("Hashmap is filled completely because previous resize attempt failed. "
         "Can't add anymore data.");
     return FAILURE;
@@ -204,16 +203,16 @@ StatusCode hashmap_AddEntry(StrIntHashmap *hashmap, FixedSizeString key,
    * string to it and the actual hashmap order is preserved in the indices
    * array.
    */
-  snprintf(hashmap->hashmap_entries[hashmap->add_count].key,
-           DEFAULT_STR_BUFFER_SIZE, "%s", key);
-  hashmap->hashmap_entries[hashmap->add_count].hash = hash;
-  hashmap->hashmap_entries[hashmap->add_count].val = val;
-  hashmap->hashmap_structure[i] = hashmap->add_count++;
+  snprintf(hashmap->hashmap_entries[hashmap->len].key, DEFAULT_STR_BUFFER_SIZE,
+           "%s", key);
+  hashmap->hashmap_entries[hashmap->len].hash = hash;
+  hashmap->hashmap_entries[hashmap->len].val = val;
+  hashmap->hashmap_structure[i] = hashmap->len++;
 
   return SUCCESS;
 }
 
-int64_t hashmap_FetchValue(StrIntHashmap *hashmap, FixedSizeString key) {
+int64_t hashmap_FetchValue(StrIntHashmap *hashmap, String key) {
   assert(hashmap);
   /*
    * This is python like open list indexed hash map.
@@ -230,11 +229,11 @@ int64_t hashmap_FetchValue(StrIntHashmap *hashmap, FixedSizeString key) {
     PROBER(i, perturb, mask);
   }
 
-  return EMPTY_INDEX;
+  return INVALID_HASHMAP_VALUE;
 }
 
 static void FetchStructureAndEntryIndex(StrIntHashmap *hashmap,
-                                        FixedSizeString key,
+                                        String key,
                                         uint64_t *pStructure_index,
                                         uint64_t *pEntry_index) {
   *pStructure_index = EMPTY_INDEX;
@@ -253,7 +252,7 @@ static void FetchStructureAndEntryIndex(StrIntHashmap *hashmap,
   }
 }
 
-StatusCode hashmap_DeleteEntry(StrIntHashmap *hashmap, FixedSizeString key) {
+StatusCode hashmap_DeleteEntry(StrIntHashmap *hashmap, String key) {
   assert(hashmap);
 
   uint64_t i_structure_index, j_structure_index;
@@ -264,14 +263,14 @@ StatusCode hashmap_DeleteEntry(StrIntHashmap *hashmap, FixedSizeString key) {
     return FAILURE;
   }
 
-  hashmap->add_count--; // This can now double as the last element index.
+  hashmap->len--; // This can now double as the last element index.
   /*
    * Adding the last entry to the deleted entry's location to pack the array.
    * This will not conflict with the hashmap structure as it is its own
    * isolated thing.
    */
   FetchStructureAndEntryIndex(hashmap,
-                              hashmap->hashmap_entries[hashmap->add_count].key,
+                              hashmap->hashmap_entries[hashmap->len].key,
                               &j_structure_index, &j_entry_index);
 
   hashmap->hashmap_structure[j_structure_index] =
@@ -285,4 +284,8 @@ StatusCode hashmap_DeleteEntry(StrIntHashmap *hashmap, FixedSizeString key) {
 
   hashmap->hashmap_structure[i_structure_index] = TOMBSTONE_INDEX;
   return SUCCESS;
+}
+
+uint64_t hashmap_GetLen(StrIntHashmap *hashmap) {
+    return hashmap->len;
 }

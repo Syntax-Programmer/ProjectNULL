@@ -2,7 +2,7 @@
 
 #include "../common.h"
 
-extern bool yaml_ParserParse(const char *yaml_file,
-                             bool (*allocator)(void *dest, const char *key,
-                                               const char *val, const char *id),
-                             void *dest);
+extern StatusCode yaml_ParserParse(const char *yaml_file,
+                                   void (*allocator)(void *dest, String key,
+                                                     String val, String id),
+                                   void *dest);

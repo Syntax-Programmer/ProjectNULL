@@ -35,7 +35,7 @@ static void GetDeltaTime(uint32_t *pStart_time, uint32_t *pFrame_c,
 }
 
 static StatusCode InitGame(SDL_Window **pWindow, SDL_Renderer **pRenderer) {
-  return arena_Create() || gfx_InitSDL(pWindow, pRenderer);
+  return arena_Init() || gfx_InitSDL(pWindow, pRenderer);
 }
 
 static void GameLoop(SDL_Renderer *renderer) {

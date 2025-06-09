@@ -7,20 +7,27 @@
 #define MAX_SPAWN_COUNT (48)
 
 /*
- * This will have initial properties of the entities.
- * This will contain both constant and variable properties.
- *
- * Constant properties will remain in this struct enclosed. While the variable
- * properties will also be present in the Entities struct to reveal to other
- * modules.
- *`
- * An Id will link the element of Entities to this struct.
+ * These are immutable properties of the every type of entity there can be.
+ * After the initialization phase they can never change.
  */
-typedef struct EntityProps EntityProps;
+typedef struct {
+  StrIntHashmap *names;
+  uint16_t *speeds;
+  uint16_t *healths;
+  bool *is_intractable;
+  SDL_Texture **assets;
+  uint16_t *widths;
+  uint16_t *heights;
+  // void (**on_interact)(char name[DEFAULT_CHAR_BUFF_SIZE]);
+} EntityProps;
 
 typedef struct {
-  // This will also be the len of MAX_SPAWN_COUNT.
-  StrIntHashmap *names;
+  /*
+   * During spawning once we can do a lookup of a name to get an index into the
+   * props array, and then use it instead of constant doing hash lookups each
+   * time we need data from the props struct.
+   */
+  uint64_t props_index[MAX_SPAWN_COUNT];
   SDL_FRect bounding_boxes[MAX_SPAWN_COUNT];
   uint16_t hp[MAX_SPAWN_COUNT];
   struct {

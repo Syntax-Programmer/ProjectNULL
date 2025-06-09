@@ -49,6 +49,8 @@ typedef COMMON_PACKED_ENUM{SUCCESS, FAILURE} StatusCode;
 #define LOG(...)
 #endif
 
-#define MATCH_TOKEN(tok, value) if (!strcmp(tok, value))
+typedef char String[DEFAULT_STR_BUFFER_SIZE];
+
+#define MATCH_TOKEN(tok, value) if (!strncmp(tok, value, DEFAULT_STR_BUFFER_SIZE))
 #define STR_TO_BOOL(str)                                                       \
   ((!strcasecmp(str, "true") || !strcmp(str, "1")) ? true : false)

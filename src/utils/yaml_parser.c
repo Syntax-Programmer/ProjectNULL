@@ -27,7 +27,7 @@ differently than non-nested properties like breakable.
 
 With this knowledge an example allocator will look like:
 
-bool tile_allocator(void *dest, const char *key, const char *val) {
+void tile_allocator(void *dest, const char *key, const char *val) {
   TileProps *props = (TileProps *)dest;
 
   if (!strcmp(key, "walkable") && !strcmp(val, "true")) {
@@ -55,14 +55,15 @@ enough and no other further nesting shall be needed.
 You may add nesting to please the humans into thinking this stuff is organized,
 but at the end of the day, the parser will just not consider it.
 */
-bool yaml_ParserParse(const char *yaml_file,
-                      bool (*allocator)(void *dest, const char *key,
-                                        const char *val, const char *id),
-                      void *dest) {
+StatusCode yaml_ParserParse(const char *yaml_file,
+                            void (*allocator)(void *dest, String key,
+                                              String val, String id),
+                            void *dest) {
+  assert(dest);
   FILE *fh = fopen(yaml_file, "rb");
   if (!fh) {
     fprintf(stderr, "Unable to open the file: %s\n", yaml_file);
-    return false;
+    return FAILURE;
   }
 
   yaml_parser_t parser;
@@ -71,14 +72,13 @@ bool yaml_ParserParse(const char *yaml_file,
   if (!yaml_parser_initialize(&parser)) {
     fprintf(stderr, "Failed to initialize parser to file %s\n", yaml_file);
     fclose(fh);
-    return 1;
+    return FAILURE;
   }
 
   yaml_parser_set_input_file(&parser, fh);
 
   bool expecting_value = false, in_sequence = false;
-  char last_key[DEFAULT_STR_BUFFER_SIZE] = {0},
-       id[DEFAULT_STR_BUFFER_SIZE] = {0};
+  String last_key = {0}, id = {0};
 
   while (true) {
     if (!yaml_parser_parse(&parser, &event)) {
@@ -149,5 +149,5 @@ bool yaml_ParserParse(const char *yaml_file,
   yaml_parser_delete(&parser);
   fclose(fh);
 
-  return true;
+  return SUCCESS;
 }
