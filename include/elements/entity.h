@@ -13,7 +13,7 @@
 typedef struct {
   StrIntHashmap *names;
   uint16_t *speeds;
-  uint16_t *healths;
+  uint16_t *hps;
   bool *is_intractable;
   SDL_Texture **assets;
   uint16_t *widths;
@@ -35,6 +35,9 @@ typedef struct {
     size_t len;
   } empty_slots, occupied_slots;
 } Entities;
+
+extern EntityProps *entity_InitProperties();
+extern void entity_DeleteProperties(EntityProps *props);
 
 /*
  * #pragma once

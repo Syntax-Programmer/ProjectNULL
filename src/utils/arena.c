@@ -17,9 +17,8 @@ typedef struct {
   size_t offset, size;
 } FreeSpots;
 
-struct Arena {
-  uint8_t *memory;
-
+typedef struct {
+  void *memory;
   /*
    * The following pointers fields are metadata field of the arena. They will in
    * of itself be stored on the arena in a special reserved section for
@@ -28,7 +27,7 @@ struct Arena {
 
   size_t available_spots_len;
   FreeSpots *available_spots;
-};
+} Arena;
 
 static Arena *arena;
 
@@ -75,9 +74,9 @@ void arena_Delete() {
   }
 }
 
-uint8_t *arena_Alloc(size_t data_size) {
+void *arena_Alloc(size_t data_size) {
   assert(arena);
-  uint8_t *allocated_location = NULL;
+  void *allocated_location = NULL;
 
   for (size_t i = 0; i < arena->available_spots_len; i++) {
     if (arena->available_spots[i].size == data_size) {
@@ -105,7 +104,6 @@ uint8_t *arena_Alloc(size_t data_size) {
 static StatusCode AddFreeSpot(size_t offset, size_t size, int32_t left_index,
                               int32_t right_index) {
   assert(arena);
-  assert(size != 3488);
   /*
    * This has a chance to disrupt the sorting, but this method is always called
    * after sorting so it won't matter.
@@ -144,11 +142,14 @@ static StatusCode AddFreeSpot(size_t offset, size_t size, int32_t left_index,
  * If this returns NULL, it means original data is preserved, and it can't
  * reallocate more memory for whatever reason.
  */
-uint8_t *arena_Realloc(uint8_t *old_data, size_t old_size, size_t new_size) {
+void *arena_Realloc(void *old_data, size_t old_size, size_t new_size) {
   assert(arena);
   if (!old_data) {
-    LOG("Can't reallocate for a NULL memory pointer. WARNING: Sometimes this "
-        "is intended behaviour so not always an error msg.");
+    /*
+     * Sometimes this is intended behavior to bulk dealloc if one of the data
+     * point fails to allocs, in that checking for each pointer before
+     * deallocating is cumbersome and unneeded.
+     */
     return NULL;
   }
   size_t old_offset = old_data - arena->memory;
@@ -232,7 +233,7 @@ uint8_t *arena_Realloc(uint8_t *old_data, size_t old_size, size_t new_size) {
   }
 
   // No growing possible, have to reallocate and add the original to free spots
-  uint8_t *new_data = arena_Alloc(new_size);
+  void *new_data = arena_Alloc(new_size);
   if (!new_data) {
     return NULL;
   }
@@ -247,14 +248,13 @@ void arena_Reset() {
   memset(arena->memory, 0, DEFAULT_ARENA_SIZE);
   arena->available_spots_len = 1;
 
-  arena->available_spots = (FreeSpots *)(arena->memory + FREE_SPOTS_OFFSET);
+  arena->available_spots = arena->memory + FREE_SPOTS_OFFSET;
   arena->available_spots[0] = (FreeSpots){
       .offset = METADATA_SIZE, .size = DEFAULT_ARENA_SIZE - METADATA_SIZE};
 }
 
 void arena_Dump() {
   assert(arena);
-
   size_t sum = 0;
 
   printf("\n\nArena Status\n");

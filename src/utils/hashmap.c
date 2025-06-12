@@ -1,5 +1,6 @@
 #include "../../include/utils/hashmap.h"
 #include "../../include/utils/arena.h"
+#include <stdint.h>
 #include <xxhash.h>
 
 /*
@@ -82,37 +83,31 @@ struct StrIntHashmap {
 
 static StatusCode GrowHashmapStructure(StrIntHashmap *hashmap);
 static StatusCode GrowHashmapEntries(StrIntHashmap *hashmap);
-static void FetchStructureAndEntryIndex(StrIntHashmap *hashmap,
-                                        String key,
+static void FetchStructureAndEntryIndex(StrIntHashmap *hashmap, String key,
                                         uint64_t *pStructure_index,
                                         uint64_t *pEntry_index);
 
-StrIntHashmap *hashmap_Init() {
-  StrIntHashmap *hashmap =
-      (StrIntHashmap *)arena_Alloc(sizeof(StrIntHashmap));
+StrIntHashmap *hashmap_Create() {
+  StrIntHashmap *hashmap = arena_Alloc(sizeof(StrIntHashmap));
   if (!hashmap) {
     LOG("Can't allocate memory for StrIntHashmap.");
-    return NULL;
-  }
-
-  hashmap->hashmap_structure =
-      (uint64_t *)arena_Alloc(sizeof(uint64_t) * MIN_HASH_BUCKET_SIZE);
-  hashmap->hashmap_entries = (HashmapEntries *)arena_Alloc(
-      sizeof(HashmapEntries) * MIN_HASH_BUCKET_SIZE);
-
-  if (!hashmap->hashmap_structure || !hashmap->hashmap_entries) {
-    LOG("Can't allocate memory for StrIntHashmap.");
-    arena_Realloc((uint8_t *)hashmap->hashmap_structure,
-                          sizeof(uint64_t) * MIN_HASH_BUCKET_SIZE, 0);
-    arena_Realloc((uint8_t *)hashmap->hashmap_entries,
-                          sizeof(HashmapEntries) * MIN_HASH_BUCKET_SIZE, 0);
-    arena_Realloc((uint8_t *)hashmap, sizeof(StrIntHashmap), 0);
     return NULL;
   }
 
   hashmap->len = 0;
   hashmap->hashmap_capacity = hashmap->hashmap_entries_capacity =
       MIN_HASH_BUCKET_SIZE;
+
+  hashmap->hashmap_structure =
+      arena_Alloc(sizeof(uint64_t) * MIN_HASH_BUCKET_SIZE);
+  hashmap->hashmap_entries =
+      arena_Alloc(sizeof(HashmapEntries) * MIN_HASH_BUCKET_SIZE);
+
+  if (!hashmap->hashmap_structure || !hashmap->hashmap_entries) {
+    LOG("Can't allocate memory for StrIntHashmap.");
+    hashmap_Delete(hashmap);
+    return NULL;
+  }
   // This will set each index to EMPTY as memset works per byte.
   memset(hashmap->hashmap_structure, 0xFF,
          sizeof(uint64_t) * hashmap->hashmap_capacity);
@@ -120,12 +115,28 @@ StrIntHashmap *hashmap_Init() {
   return hashmap;
 }
 
+void hashmap_Delete(StrIntHashmap *hashmap) {
+  if (hashmap) {
+    if (hashmap->hashmap_structure) {
+      arena_Dealloc(hashmap->hashmap_structure,
+                    sizeof(uint64_t) * hashmap->hashmap_capacity);
+      hashmap->hashmap_structure = NULL;
+    }
+    if (hashmap->hashmap_entries) {
+      arena_Dealloc(hashmap->hashmap_entries,
+                    sizeof(HashmapEntries) * hashmap->hashmap_entries_capacity);
+      hashmap->hashmap_entries = NULL;
+    }
+    arena_Dealloc(hashmap, sizeof(StrIntHashmap));
+  }
+}
+
 static StatusCode GrowHashmapStructure(StrIntHashmap *hashmap) {
   assert(hashmap);
-  uint64_t *new_indices = (uint64_t *)arena_Realloc(
-      (uint8_t *)hashmap->hashmap_structure,
-      hashmap->hashmap_capacity * sizeof(uint64_t),
-      hashmap->hashmap_capacity * 2 * sizeof(uint64_t));
+
+  size_t old_size = hashmap->hashmap_capacity * sizeof(uint64_t);
+  uint64_t *new_indices =
+      arena_Realloc(hashmap->hashmap_structure, old_size, old_size * 2);
   if (!new_indices) {
     LOG("Can't resize the hashmap array. Future failure may be imminent.")
     return FAILURE;
@@ -152,11 +163,12 @@ static StatusCode GrowHashmapStructure(StrIntHashmap *hashmap) {
 
 static StatusCode GrowHashmapEntries(StrIntHashmap *hashmap) {
   assert(hashmap);
-  HashmapEntries *new_entries = (HashmapEntries *)arena_Realloc(
-      (uint8_t *)hashmap->hashmap_entries,
-      hashmap->hashmap_entries_capacity * sizeof(HashmapEntries),
-      (hashmap->hashmap_entries_capacity + MIN_HASH_BUCKET_SIZE) *
-          sizeof(HashmapEntries));
+
+  size_t old_size = hashmap->hashmap_entries_capacity * sizeof(HashmapEntries);
+  size_t new_size = (hashmap->hashmap_entries_capacity + MIN_HASH_BUCKET_SIZE) *
+                    sizeof(HashmapEntries);
+  HashmapEntries *new_entries = arena_Realloc(
+      hashmap->hashmap_entries, old_size, new_size);
 
   if (!new_entries) {
     LOG("Can't resize the hashmap entries array. Future failure may be "
@@ -170,8 +182,7 @@ static StatusCode GrowHashmapEntries(StrIntHashmap *hashmap) {
   return SUCCESS;
 }
 
-StatusCode hashmap_AddEntry(StrIntHashmap *hashmap, String key,
-                            int64_t val) {
+StatusCode hashmap_AddEntry(StrIntHashmap *hashmap, String key, int64_t val) {
   assert(hashmap);
   // No failure on growing failure due to still being some space left.
   if (hashmap->len >= hashmap->hashmap_capacity * LOAD_FACTOR) {
@@ -232,8 +243,7 @@ int64_t hashmap_FetchValue(StrIntHashmap *hashmap, String key) {
   return INVALID_HASHMAP_VALUE;
 }
 
-static void FetchStructureAndEntryIndex(StrIntHashmap *hashmap,
-                                        String key,
+static void FetchStructureAndEntryIndex(StrIntHashmap *hashmap, String key,
                                         uint64_t *pStructure_index,
                                         uint64_t *pEntry_index) {
   *pStructure_index = EMPTY_INDEX;
@@ -286,6 +296,4 @@ StatusCode hashmap_DeleteEntry(StrIntHashmap *hashmap, String key) {
   return SUCCESS;
 }
 
-uint64_t hashmap_GetLen(StrIntHashmap *hashmap) {
-    return hashmap->len;
-}
+uint64_t hashmap_GetLen(StrIntHashmap *hashmap) { return hashmap->len; }

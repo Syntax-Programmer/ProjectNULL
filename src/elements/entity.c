@@ -3,12 +3,39 @@
 #include "../../include/utils/yaml_parser.h"
 
 #define ENTITY_PROPERTIES_PATH ("gamedata/properties/entity_properties.yaml")
+#define MIN_PROPERTIES_SLOTS (8)
 
+static StatusCode AllocateInitialPropertyMemory(EntityProps *props);
 static void AllocateProperties(void *dest, String key, String val, String id);
 
+static StatusCode AllocateInitialPropertyMemory(EntityProps *props) {
+  props->names = hashmap_Create();
+  props->speeds =
+      (uint16_t *)arena_Alloc(sizeof(uint16_t) * MIN_PROPERTIES_SLOTS);
+  props->hps = (uint16_t *)arena_Alloc(sizeof(uint16_t) * MIN_PROPERTIES_SLOTS);
+  props->is_intractable =
+      (bool *)arena_Alloc(sizeof(bool) * MIN_PROPERTIES_SLOTS);
+  props->assets =
+      (SDL_Texture **)arena_Alloc(sizeof(SDL_Texture *) * MIN_PROPERTIES_SLOTS);
+  props->widths =
+      (uint16_t *)arena_Alloc(sizeof(uint16_t) * MIN_PROPERTIES_SLOTS);
+  props->heights =
+      (uint16_t *)arena_Alloc(sizeof(uint16_t) * MIN_PROPERTIES_SLOTS);
+
+  if (!props->names || !props->speeds || !props->hps ||
+      !props->is_intractable || !props->assets || !props->widths ||
+      !props->heights) {
+    LOG("Error originated from entity.c AllocateInitialPropertyMemory.");
+    // names' memory deallocation is taken care off in the hashmap_Create().
+    entity_DeleteProperties(props);
+    return FAILURE;
+  }
+
+  return SUCCESS;
+}
+
 static void AllocateProperties(void *dest, String key, String val, String id) {
-  EntityProps **pProps = (EntityProps **)dest;
-  EntityProps *props = *pProps;
+  EntityProps *props = (EntityProps *)dest;
 
   int64_t value = hashmap_FetchValue(props->names, id);
 }
@@ -16,20 +43,41 @@ static void AllocateProperties(void *dest, String key, String val, String id) {
 EntityProps *entity_InitProperties() {
   EntityProps *props = (EntityProps *)arena_Alloc(sizeof(EntityProps));
   if (!props) {
-    LOG("Error Originated from entity_InitProperties.");
+    LOG("Error originated from entity_InitProperties.");
     return NULL;
   }
 
-  // This will help us resize inside the allocator if array capacity runs out.
-  void *props_pointer = (void *)(&props);
+  if (AllocateInitialPropertyMemory(props) == FAILURE) {
+    return NULL;
+  }
 
-  if (yaml_ParserParse(ENTITY_PROPERTIES_PATH, AllocateProperties,
-                       props_pointer) == FAILURE) {
-    arena_Realloc((uint8_t *)props, sizeof(EntityProps), 0);
+  if (yaml_ParserParse(ENTITY_PROPERTIES_PATH, AllocateProperties, props) ==
+      FAILURE) {
+    entity_DeleteProperties(props);
     return NULL;
   }
 
   return props;
+}
+
+void entity_DeleteProperties(EntityProps *props) {
+  if (props) {
+    hashmap_Delete(props->names);
+    arena_Dealloc(props->speeds, sizeof(uint16_t) * MIN_PROPERTIES_SLOTS);
+    arena_Dealloc(props->hps, sizeof(uint16_t) * MIN_PROPERTIES_SLOTS);
+    arena_Dealloc(props->is_intractable, sizeof(bool) * MIN_PROPERTIES_SLOTS);
+    arena_Dealloc(props->assets, sizeof(SDL_Texture *) * MIN_PROPERTIES_SLOTS);
+    arena_Dealloc(props->widths, sizeof(uint16_t) * MIN_PROPERTIES_SLOTS);
+    arena_Dealloc(props->heights, sizeof(uint16_t) * MIN_PROPERTIES_SLOTS);
+    props->names = NULL;
+    props->speeds = NULL;
+    props->hps = NULL;
+    props->is_intractable = NULL;
+    props->assets = NULL;
+    props->widths = NULL;
+    props->heights = NULL;
+    arena_Dealloc(props, sizeof(EntityProps));
+  }
 }
 
 /*
