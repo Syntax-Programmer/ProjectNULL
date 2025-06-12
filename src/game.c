@@ -3,7 +3,6 @@
 #include "../include/engine/state.h"
 #include "../include/utils/arena.h"
 
-
 #define MAX_FPS 144
 #define MIN_DT_MS (1000.0 / MAX_FPS)
 #define MIN_DT_SEC (MIN_DT_MS / 1000.0)

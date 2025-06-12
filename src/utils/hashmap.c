@@ -1,6 +1,6 @@
 #include "../../include/utils/hashmap.h"
 #include "../../include/utils/arena.h"
-#include <stdint.h>
+#include "../../include/utils/array.h"
 #include <xxhash.h>
 
 /*
@@ -48,28 +48,18 @@ typedef struct {
  */
 struct StrIntHashmap {
   /*
-   * A counter of how many times we added to the hash array. This will also
-   * double as a sort of len as we aim to make a perfect hash algorithm.
-   */
-  size_t len;
-  /*
    * This shall always be a power of 2 to take advantage of the probing
    * algorithm effectively.
+   * Its the capacity of hashmap_structure.
    */
   size_t hashmap_capacity;
-  /*
-   * This will be different from the hashmap_capacity, to prioritize low memory
-   * usage and resize only when the array is full and not when the load factor
-   * is met.
-   */
-  size_t hashmap_entries_capacity;
   /*
    * Assume this is the actual hashmap with the values it contain map to the
    * hashmap entries to represent what is stored where. This will be the
    * size of the capacity of the hashmap and will be resized if its about ~70%
    * filled.
    * It will contain either a UINT64_MAX to indicate that the index is empty
-   * and UINT32_MAX - 1 to indicate the index was occupied but now its
+   * and UINT64_MAX - 1 to indicate the index was occupied but now its
    * deleted. The deleted index will be used in the probing algorithm to not
    * stop searching early giving false negatives.
    */
@@ -78,11 +68,11 @@ struct StrIntHashmap {
    * The hashmap entries separate from the hashmap structure in an effort to
    * save memory.
    */
-  HashmapEntries *hashmap_entries;
+  Array *hashmap_entries;
 };
 
 static StatusCode GrowHashmapStructure(StrIntHashmap *hashmap);
-static StatusCode GrowHashmapEntries(StrIntHashmap *hashmap);
+static size_t GrowHashmapEntriesCallback(size_t old_size);
 static void FetchStructureAndEntryIndex(StrIntHashmap *hashmap, String key,
                                         uint64_t *pStructure_index,
                                         uint64_t *pEntry_index);
@@ -94,20 +84,17 @@ StrIntHashmap *hashmap_Create() {
     return NULL;
   }
 
-  hashmap->len = 0;
-  hashmap->hashmap_capacity = hashmap->hashmap_entries_capacity =
-      MIN_HASH_BUCKET_SIZE;
-
   hashmap->hashmap_structure =
       arena_Alloc(sizeof(uint64_t) * MIN_HASH_BUCKET_SIZE);
-  hashmap->hashmap_entries =
-      arena_Alloc(sizeof(HashmapEntries) * MIN_HASH_BUCKET_SIZE);
+  hashmap->hashmap_entries = array_Create(sizeof(HashmapEntries));
 
   if (!hashmap->hashmap_structure || !hashmap->hashmap_entries) {
     LOG("Can't allocate memory for StrIntHashmap.");
     hashmap_Delete(hashmap);
     return NULL;
   }
+
+  hashmap->hashmap_capacity = MIN_HASH_BUCKET_SIZE;
   // This will set each index to EMPTY as memset works per byte.
   memset(hashmap->hashmap_structure, 0xFF,
          sizeof(uint64_t) * hashmap->hashmap_capacity);
@@ -123,8 +110,7 @@ void hashmap_Delete(StrIntHashmap *hashmap) {
       hashmap->hashmap_structure = NULL;
     }
     if (hashmap->hashmap_entries) {
-      arena_Dealloc(hashmap->hashmap_entries,
-                    sizeof(HashmapEntries) * hashmap->hashmap_entries_capacity);
+      array_Delete(hashmap->hashmap_entries);
       hashmap->hashmap_entries = NULL;
     }
     arena_Dealloc(hashmap, sizeof(StrIntHashmap));
@@ -150,8 +136,10 @@ static StatusCode GrowHashmapStructure(StrIntHashmap *hashmap) {
 
   // Rehashing each string.
   uint64_t mask = hashmap->hashmap_capacity - 1;
-  for (size_t i = 0; i < hashmap->len; i++) {
-    uint64_t perturb = hashmap->hashmap_entries[i].hash, j = perturb & mask;
+  HashmapEntries *entries_arr = array_RawData(hashmap->hashmap_entries);
+  for (size_t i = 0; i < hashmap_GetLen(hashmap); i++) {
+    // Since hashmap_len == entries_len, no bound checks needed.
+    uint64_t perturb = entries_arr[i].hash, j = perturb & mask;
     while (hashmap->hashmap_structure[j] != EMPTY_INDEX) {
       PROBER(j, perturb, mask);
     }
@@ -161,38 +149,41 @@ static StatusCode GrowHashmapStructure(StrIntHashmap *hashmap) {
   return SUCCESS;
 }
 
-static StatusCode GrowHashmapEntries(StrIntHashmap *hashmap) {
-  assert(hashmap);
+// static StatusCode GrowHashmapEntries(StrIntHashmap *hashmap) {
+//   assert(hashmap);
 
-  size_t old_size = hashmap->hashmap_entries_capacity * sizeof(HashmapEntries);
-  size_t new_size = (hashmap->hashmap_entries_capacity + MIN_HASH_BUCKET_SIZE) *
-                    sizeof(HashmapEntries);
-  HashmapEntries *new_entries = arena_Realloc(
-      hashmap->hashmap_entries, old_size, new_size);
+//   size_t old_size =
+//       array_GetCapacity(hashmap->hashmap_entries) * sizeof(HashmapEntries);
+//   size_t new_size = old_size + (MIN_HASH_BUCKET_SIZE *
+//   sizeof(HashmapEntries)); HashmapEntries *new_entries =
+//       arena_Realloc(hashmap->hashmap_entries, old_size, new_size);
 
-  if (!new_entries) {
-    LOG("Can't resize the hashmap entries array. Future failure may be "
-        "imminent.")
-    return FAILURE;
-  }
+//   if (!new_entries) {
+//     LOG("Can't resize the hashmap entries array. Future failure may be "
+//         "imminent.")
+//     return FAILURE;
+//   }
 
-  hashmap->hashmap_entries = new_entries;
-  hashmap->hashmap_entries_capacity += MIN_HASH_BUCKET_SIZE;
+//   hashmap->hashmap_entries = new_entries;
+//   hashmap->hashmap_entries_capacity += MIN_HASH_BUCKET_SIZE;
 
-  return SUCCESS;
+//   return SUCCESS;
+// }
+
+static size_t GrowHashmapEntriesCallback(size_t old_size) {
+  return old_size + MIN_HASH_BUCKET_SIZE;
 }
 
 StatusCode hashmap_AddEntry(StrIntHashmap *hashmap, String key, int64_t val) {
   assert(hashmap);
+
+  size_t hashmap_len = hashmap_GetLen(hashmap);
+
   // No failure on growing failure due to still being some space left.
-  if (hashmap->len >= hashmap->hashmap_capacity * LOAD_FACTOR) {
+  if (hashmap_len >= hashmap->hashmap_capacity * LOAD_FACTOR) {
     GrowHashmapStructure(hashmap);
   }
-  if (hashmap->len == hashmap->hashmap_entries_capacity) {
-    GrowHashmapEntries(hashmap);
-  }
-  if (hashmap->len == hashmap->hashmap_entries_capacity ||
-      hashmap->len == hashmap->hashmap_capacity) {
+  if (hashmap_len == hashmap->hashmap_capacity) {
     LOG("Hashmap is filled completely because previous resize attempt failed. "
         "Can't add anymore data.");
     return FAILURE;
@@ -200,11 +191,13 @@ StatusCode hashmap_AddEntry(StrIntHashmap *hashmap, String key, int64_t val) {
 
   uint64_t mask = hashmap->hashmap_capacity - 1, hash = STR_HASHER(key);
   uint64_t perturb = hash, i = perturb & mask, arr_index;
+  HashmapEntries *entries_arr = array_RawData(hashmap->hashmap_entries);
   while (hashmap->hashmap_structure[i] != EMPTY_INDEX &&
          hashmap->hashmap_structure[i] != TOMBSTONE_INDEX) {
     arr_index = hashmap->hashmap_structure[i];
-    MATCH_TOKEN(hashmap->hashmap_entries[arr_index].key, key) {
-      hashmap->hashmap_entries[arr_index].val = val;
+    // Since arr_index is guaranteed to give valid indices.
+    MATCH_TOKEN(entries_arr[arr_index].key, key) {
+      entries_arr[arr_index].val = val;
       return SUCCESS;
     }
     PROBER(i, perturb, mask);
@@ -214,11 +207,20 @@ StatusCode hashmap_AddEntry(StrIntHashmap *hashmap, String key, int64_t val) {
    * string to it and the actual hashmap order is preserved in the indices
    * array.
    */
-  snprintf(hashmap->hashmap_entries[hashmap->len].key, DEFAULT_STR_BUFFER_SIZE,
-           "%s", key);
-  hashmap->hashmap_entries[hashmap->len].hash = hash;
-  hashmap->hashmap_entries[hashmap->len].val = val;
-  hashmap->hashmap_structure[i] = hashmap->len++;
+  HashmapEntries new_entry = {.hash = hash, .val = val};
+  snprintf(new_entry.key, DEFAULT_STR_BUFFER_SIZE, "%s", key);
+  /*
+   * We again check for size failure here and not above is due to resize trigger
+   * can only be from this function. And checking for it above will give false
+   * results
+   */
+  if (array_Push(hashmap->hashmap_entries, &new_entry,
+                 GrowHashmapEntriesCallback) == FAILURE) {
+    LOG("Hashmap entries array is filled completely because previous resize "
+        "attempt failed. Can't add anymore data.");
+    return FAILURE;
+  }
+  hashmap->hashmap_structure[i] = hashmap_len;
 
   return SUCCESS;
 }
@@ -231,11 +233,13 @@ int64_t hashmap_FetchValue(StrIntHashmap *hashmap, String key) {
    * perturb to generate random spread which ensures perfect hashing.
    */
   uint64_t mask = hashmap->hashmap_capacity - 1, hash = STR_HASHER(key);
-  uint64_t perturb = hash, i = perturb & mask;
-  uint64_t arr_index;
+  uint64_t perturb = hash, i = perturb & mask, arr_index;
+  HashmapEntries *entries_arr = array_RawData(hashmap->hashmap_entries);
   while ((arr_index = hashmap->hashmap_structure[i]) != EMPTY_INDEX) {
-    MATCH_TOKEN(hashmap->hashmap_entries[arr_index].key, key) {
-      return hashmap->hashmap_entries[arr_index].val;
+    if (arr_index != TOMBSTONE_INDEX) {
+      MATCH_TOKEN(entries_arr[arr_index].key, key) {
+        return entries_arr[arr_index].val;
+      }
     }
     PROBER(i, perturb, mask);
   }
@@ -246,17 +250,28 @@ int64_t hashmap_FetchValue(StrIntHashmap *hashmap, String key) {
 static void FetchStructureAndEntryIndex(StrIntHashmap *hashmap, String key,
                                         uint64_t *pStructure_index,
                                         uint64_t *pEntry_index) {
-  *pStructure_index = EMPTY_INDEX;
-  *pEntry_index = EMPTY_INDEX;
+  if (pStructure_index) {
+
+    *pStructure_index = EMPTY_INDEX;
+  }
+  if (pEntry_index) {
+    *pEntry_index = EMPTY_INDEX;
+  }
 
   uint64_t mask = hashmap->hashmap_capacity - 1, hash = STR_HASHER(key);
-  uint64_t perturb = hash, i = perturb & mask;
-  uint64_t arr_index;
+  uint64_t perturb = hash, i = perturb & mask, arr_index;
+  HashmapEntries *entries_arr = array_RawData(hashmap->hashmap_entries);
   while ((arr_index = hashmap->hashmap_structure[i]) != EMPTY_INDEX) {
-    MATCH_TOKEN(hashmap->hashmap_entries[arr_index].key, key) {
-      *pStructure_index = i;
-      *pEntry_index = arr_index;
-      return;
+    if (arr_index != TOMBSTONE_INDEX) {
+      MATCH_TOKEN(entries_arr[arr_index].key, key) {
+        if (pStructure_index) {
+          *pStructure_index = i;
+        }
+        if (pEntry_index) {
+          *pEntry_index = arr_index;
+        }
+        return;
+      }
     }
     PROBER(i, perturb, mask);
   }
@@ -273,27 +288,24 @@ StatusCode hashmap_DeleteEntry(StrIntHashmap *hashmap, String key) {
     return FAILURE;
   }
 
-  hashmap->len--; // This can now double as the last element index.
-  /*
-   * Adding the last entry to the deleted entry's location to pack the array.
-   * This will not conflict with the hashmap structure as it is its own
-   * isolated thing.
-   */
-  FetchStructureAndEntryIndex(hashmap,
-                              hashmap->hashmap_entries[hashmap->len].key,
-                              &j_structure_index, &j_entry_index);
+  size_t hashmap_len = hashmap_GetLen(hashmap);
+  HashmapEntries *entries_arr = array_RawData(hashmap->hashmap_entries);
+  FetchStructureAndEntryIndex(hashmap, entries_arr[hashmap_len - 1].key,
+                              &j_structure_index, NULL);
 
+  // Repacking the array as order of this array doesn't matter.
+  array_SetIndexValue(hashmap->hashmap_entries, &entries_arr[hashmap_len - 1],
+                      i_entry_index);
+  array_Pop(hashmap->hashmap_entries);
+
+  // Updating the string index, as the index of the string was moved.
   hashmap->hashmap_structure[j_structure_index] =
       hashmap->hashmap_structure[i_structure_index];
-  snprintf(hashmap->hashmap_entries[i_entry_index].key, DEFAULT_STR_BUFFER_SIZE,
-           "%s", hashmap->hashmap_entries[j_entry_index].key);
-  hashmap->hashmap_entries[i_entry_index].hash =
-      hashmap->hashmap_entries[j_entry_index].hash;
-  hashmap->hashmap_entries[i_entry_index].val =
-      hashmap->hashmap_entries[j_entry_index].val;
-
   hashmap->hashmap_structure[i_structure_index] = TOMBSTONE_INDEX;
   return SUCCESS;
 }
 
-uint64_t hashmap_GetLen(StrIntHashmap *hashmap) { return hashmap->len; }
+size_t hashmap_GetLen(StrIntHashmap *hashmap) {
+  assert(hashmap);
+  return array_GetLen(hashmap->hashmap_entries);
+}

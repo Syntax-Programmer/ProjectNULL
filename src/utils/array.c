@@ -81,14 +81,14 @@ StatusCode array_Push(Array *array, void *value,
                               : array->capacity + (array->capacity >> 1);
     if (new_capacity <= array->capacity) {
       LOG("Array size increase callback producing faulty results. New size "
-          "can't be less than original");
-      return FAILURE;
+          "can't be less than original. Reverting to default resizing scheme.");
+      new_capacity = array->capacity + (array->capacity >> 1);
     }
     void *data =
         arena_Realloc(array->data, (array->data_size * array->capacity),
                       (array->data_size * new_capacity));
     if (!data) {
-      LOG("Can't add any more elements, memory allocation failure.");
+      LOG("Can't add any more elements to array, memory allocation failure.");
       return FAILURE;
     }
     array->data = data;
@@ -101,20 +101,14 @@ StatusCode array_Push(Array *array, void *value,
   return SUCCESS;
 }
 
-void *array_Pop(Array *array) {
+void array_Pop(Array *array) {
   assert(array);
   if (array->len == 0) {
     LOG("Empty array, can't pop more.");
-    return NULL;
+    return;
   }
   void *data = array_GetIndexValue(array, (array->len - 1));
   array->len--;
-  /*
-   * This is a temporary view into array's buffer, which array considers out of
-   * reach. This is just a view you can see but it will be overwritten so it is
-   * not recommended to store it.
-   */
-  return data;
 }
 
 StatusCode array_ShrinkToFit(Array *array) {
@@ -133,4 +127,9 @@ StatusCode array_ShrinkToFit(Array *array) {
 void array_Reset(Array *array) {
   assert(array);
   array->len = 0;
+}
+
+void *array_RawData(Array *array) {
+    assert(array);
+    return array->data;
 }
