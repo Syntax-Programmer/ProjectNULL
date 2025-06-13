@@ -2,17 +2,17 @@
 
 /*
  * This arena implementation offers excellent performance when used with proper
- * bounds checking. It achieves this by simply updating metadata—no physical memory
- * movement or copying is done unless absolutely necessary.
+ * bounds checking. It achieves this by simply updating metadata—no physical
+ * memory movement or copying is done unless absolutely necessary.
  *
- * However, this arena is *not memory-safe*. It won't prevent you from, for example,
- * accessing memory beyond an array's capacity, potentially reading or writing into
- * unrelated memory regions. So *robust bounds checking* is essential to avoid
- * data corruption or unintended data leaks.
+ * However, this arena is *not memory-safe*. It won't prevent you from, for
+ * example, accessing memory beyond an array's capacity, potentially reading or
+ * writing into unrelated memory regions. So *robust bounds checking* is
+ * essential to avoid data corruption or unintended data leaks.
  *
  * Think of it like classic `malloc`/`realloc`—if used carefully, it won't crash
- * (segfault), but it also won't protect you from bugs caused by incorrect indexing
- * or misuse of allocated memory.
+ * (segfault), but it also won't protect you from bugs caused by incorrect
+ * indexing or misuse of allocated memory.
  */
 
 #define FREE_SPOTS_LEN_OFFSET (0)
@@ -219,9 +219,6 @@ void *arena_Realloc(void *old_data, size_t old_size, size_t new_size) {
      */
     AddFreeSpot(old_offset + new_size, old_size - new_size,
                 (new_size == 0) ? left_index : -1, right_index);
-    if (new_size == 0) {
-      arena->available_spots_len--;
-    }
     return (new_size == 0) ? NULL : old_data;
   }
 

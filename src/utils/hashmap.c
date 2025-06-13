@@ -48,12 +48,6 @@ typedef struct {
  */
 struct StrIntHashmap {
   /*
-   * This shall always be a power of 2 to take advantage of the probing
-   * algorithm effectively.
-   * Its the capacity of hashmap_structure.
-   */
-  size_t hashmap_capacity;
-  /*
    * Assume this is the actual hashmap with the values it contain map to the
    * hashmap entries to represent what is stored where. This will be the
    * size of the capacity of the hashmap and will be resized if its about ~70%
@@ -63,15 +57,15 @@ struct StrIntHashmap {
    * deleted. The deleted index will be used in the probing algorithm to not
    * stop searching early giving false negatives.
    */
-  uint64_t *hashmap_structure;
+  FlexArray *hashmap_structure;
   /*
    * The hashmap entries separate from the hashmap structure in an effort to
    * save memory.
    */
-  Array *hashmap_entries;
+  AppendArray *hashmap_entries;
 };
 
-static StatusCode GrowHashmapStructure(StrIntHashmap *hashmap);
+static size_t GrowHashmapStructureCallback(size_t old_capacity);
 static size_t GrowHashmapEntriesCallback(size_t old_size);
 static void FetchStructureAndEntryIndex(StrIntHashmap *hashmap, String key,
                                         uint64_t *pStructure_index,
@@ -85,8 +79,8 @@ StrIntHashmap *hashmap_Create() {
   }
 
   hashmap->hashmap_structure =
-      arena_Alloc(sizeof(uint64_t) * MIN_HASH_BUCKET_SIZE);
-  hashmap->hashmap_entries = array_Create(sizeof(HashmapEntries));
+      array_FlexArrayCreate(sizeof(uint64_t), MIN_HASH_BUCKET_SIZE);
+  hashmap->hashmap_entries = array_AppendArrayCreate(sizeof(HashmapEntries));
 
   if (!hashmap->hashmap_structure || !hashmap->hashmap_entries) {
     LOG("Can't allocate memory for StrIntHashmap.");
@@ -94,10 +88,10 @@ StrIntHashmap *hashmap_Create() {
     return NULL;
   }
 
-  hashmap->hashmap_capacity = MIN_HASH_BUCKET_SIZE;
+  FlexArray *structure_array =
+      array_GetFlexArrayRawData(hashmap->hashmap_structure);
   // This will set each index to EMPTY as memset works per byte.
-  memset(hashmap->hashmap_structure, 0xFF,
-         sizeof(uint64_t) * hashmap->hashmap_capacity);
+  memset(structure_array, 0xFF, sizeof(uint64_t) * MIN_HASH_BUCKET_SIZE);
 
   return hashmap;
 }
@@ -105,96 +99,86 @@ StrIntHashmap *hashmap_Create() {
 void hashmap_Delete(StrIntHashmap *hashmap) {
   if (hashmap) {
     if (hashmap->hashmap_structure) {
-      arena_Dealloc(hashmap->hashmap_structure,
-                    sizeof(uint64_t) * hashmap->hashmap_capacity);
+      array_FlexArrayDelete(hashmap->hashmap_structure);
       hashmap->hashmap_structure = NULL;
     }
     if (hashmap->hashmap_entries) {
-      array_Delete(hashmap->hashmap_entries);
+      array_AppendArrayDelete(hashmap->hashmap_entries);
       hashmap->hashmap_entries = NULL;
     }
     arena_Dealloc(hashmap, sizeof(StrIntHashmap));
   }
 }
 
+static size_t GrowHashmapStructureCallback(size_t old_capacity) {
+  return old_capacity * 2;
+}
+
+static size_t GrowHashmapEntriesCallback(size_t old_capacity) {
+  return old_capacity + MIN_HASH_BUCKET_SIZE;
+}
+
 static StatusCode GrowHashmapStructure(StrIntHashmap *hashmap) {
   assert(hashmap);
-
-  size_t old_size = hashmap->hashmap_capacity * sizeof(uint64_t);
-  uint64_t *new_indices =
-      arena_Realloc(hashmap->hashmap_structure, old_size, old_size * 2);
-  if (!new_indices) {
-    LOG("Can't resize the hashmap array. Future failure may be imminent.")
+  if (array_GrowFlexArray(hashmap->hashmap_structure,
+                          GrowHashmapStructureCallback) == FAILURE) {
+    LOG("Can't resize the hashmap structure array.");
     return FAILURE;
   }
-
-  hashmap->hashmap_structure = new_indices;
-  hashmap->hashmap_capacity *= 2;
+  FlexArray *structure_array =
+      array_GetFlexArrayRawData(hashmap->hashmap_structure);
   // This will set each index to EMPTY as memset works per byte.
-  memset(hashmap->hashmap_structure, 0xFF,
-         sizeof(uint64_t) * hashmap->hashmap_capacity);
+  memset(structure_array, 0xFF,
+         sizeof(uint64_t) *
+             array_GetFlexArrayCapacity(hashmap->hashmap_structure));
 
   // Rehashing each string.
-  uint64_t mask = hashmap->hashmap_capacity - 1;
-  HashmapEntries *entries_arr = array_RawData(hashmap->hashmap_entries);
+  uint64_t mask = array_GetFlexArrayCapacity(hashmap->hashmap_structure) - 1;
+  HashmapEntries *entries_arr =
+      array_GetAppendArrayRawData(hashmap->hashmap_entries);
+  uint64_t *structure_arr =
+      array_GetFlexArrayRawData(hashmap->hashmap_structure);
+
   for (size_t i = 0; i < hashmap_GetLen(hashmap); i++) {
     // Since hashmap_len == entries_len, no bound checks needed.
     uint64_t perturb = entries_arr[i].hash, j = perturb & mask;
-    while (hashmap->hashmap_structure[j] != EMPTY_INDEX) {
+    while (structure_arr[j] != EMPTY_INDEX) {
       PROBER(j, perturb, mask);
     }
-    hashmap->hashmap_structure[j] = i;
+    structure_arr[j] = i;
   }
 
   return SUCCESS;
 }
 
-// static StatusCode GrowHashmapEntries(StrIntHashmap *hashmap) {
-//   assert(hashmap);
-
-//   size_t old_size =
-//       array_GetCapacity(hashmap->hashmap_entries) * sizeof(HashmapEntries);
-//   size_t new_size = old_size + (MIN_HASH_BUCKET_SIZE *
-//   sizeof(HashmapEntries)); HashmapEntries *new_entries =
-//       arena_Realloc(hashmap->hashmap_entries, old_size, new_size);
-
-//   if (!new_entries) {
-//     LOG("Can't resize the hashmap entries array. Future failure may be "
-//         "imminent.")
-//     return FAILURE;
-//   }
-
-//   hashmap->hashmap_entries = new_entries;
-//   hashmap->hashmap_entries_capacity += MIN_HASH_BUCKET_SIZE;
-
-//   return SUCCESS;
-// }
-
-static size_t GrowHashmapEntriesCallback(size_t old_size) {
-  return old_size + MIN_HASH_BUCKET_SIZE;
-}
-
 StatusCode hashmap_AddEntry(StrIntHashmap *hashmap, String key, int64_t val) {
   assert(hashmap);
-
   size_t hashmap_len = hashmap_GetLen(hashmap);
+  size_t structure_capacity =
+      array_GetFlexArrayCapacity(hashmap->hashmap_structure);
 
   // No failure on growing failure due to still being some space left.
-  if (hashmap_len >= hashmap->hashmap_capacity * LOAD_FACTOR) {
+  if (hashmap_len >= structure_capacity * LOAD_FACTOR) {
     GrowHashmapStructure(hashmap);
+    // Capacity can change so reassigning.
+    structure_capacity = array_GetFlexArrayCapacity(hashmap->hashmap_structure);
   }
-  if (hashmap_len == hashmap->hashmap_capacity) {
+  if (hashmap_len == structure_capacity) {
     LOG("Hashmap is filled completely because previous resize attempt failed. "
         "Can't add anymore data.");
     return FAILURE;
   }
 
-  uint64_t mask = hashmap->hashmap_capacity - 1, hash = STR_HASHER(key);
+  uint64_t mask = structure_capacity - 1, hash = STR_HASHER(key);
   uint64_t perturb = hash, i = perturb & mask, arr_index;
-  HashmapEntries *entries_arr = array_RawData(hashmap->hashmap_entries);
-  while (hashmap->hashmap_structure[i] != EMPTY_INDEX &&
-         hashmap->hashmap_structure[i] != TOMBSTONE_INDEX) {
-    arr_index = hashmap->hashmap_structure[i];
+  HashmapEntries *entries_arr =
+      array_GetAppendArrayRawData(hashmap->hashmap_entries);
+  uint64_t *structure_arr =
+      array_GetFlexArrayRawData(hashmap->hashmap_structure);
+
+  while (structure_arr[i] != EMPTY_INDEX &&
+         structure_arr[i] != TOMBSTONE_INDEX) {
+    arr_index = structure_arr[i];
     // Since arr_index is guaranteed to give valid indices.
     MATCH_TOKEN(entries_arr[arr_index].key, key) {
       entries_arr[arr_index].val = val;
@@ -214,13 +198,13 @@ StatusCode hashmap_AddEntry(StrIntHashmap *hashmap, String key, int64_t val) {
    * can only be from this function. And checking for it above will give false
    * results
    */
-  if (array_Push(hashmap->hashmap_entries, &new_entry,
-                 GrowHashmapEntriesCallback) == FAILURE) {
+  if (array_AppendArrayPush(hashmap->hashmap_entries, &new_entry,
+                            GrowHashmapEntriesCallback) == FAILURE) {
     LOG("Hashmap entries array is filled completely because previous resize "
         "attempt failed. Can't add anymore data.");
     return FAILURE;
   }
-  hashmap->hashmap_structure[i] = hashmap_len;
+  array_SetFlexArrayIndexValue(hashmap->hashmap_structure, &hashmap_len, i);
 
   return SUCCESS;
 }
@@ -232,10 +216,15 @@ int64_t hashmap_FetchValue(StrIntHashmap *hashmap, String key) {
    * Here when we encounter collision we probe for a new location using the
    * perturb to generate random spread which ensures perfect hashing.
    */
-  uint64_t mask = hashmap->hashmap_capacity - 1, hash = STR_HASHER(key);
+  uint64_t mask = array_GetFlexArrayCapacity(hashmap->hashmap_structure) - 1,
+           hash = STR_HASHER(key);
   uint64_t perturb = hash, i = perturb & mask, arr_index;
-  HashmapEntries *entries_arr = array_RawData(hashmap->hashmap_entries);
-  while ((arr_index = hashmap->hashmap_structure[i]) != EMPTY_INDEX) {
+  HashmapEntries *entries_arr =
+      array_GetAppendArrayRawData(hashmap->hashmap_entries);
+  uint64_t *structure_arr =
+      array_GetFlexArrayRawData(hashmap->hashmap_structure);
+
+  while ((arr_index = structure_arr[i]) != EMPTY_INDEX) {
     if (arr_index != TOMBSTONE_INDEX) {
       MATCH_TOKEN(entries_arr[arr_index].key, key) {
         return entries_arr[arr_index].val;
@@ -251,17 +240,21 @@ static void FetchStructureAndEntryIndex(StrIntHashmap *hashmap, String key,
                                         uint64_t *pStructure_index,
                                         uint64_t *pEntry_index) {
   if (pStructure_index) {
-
     *pStructure_index = EMPTY_INDEX;
   }
   if (pEntry_index) {
     *pEntry_index = EMPTY_INDEX;
   }
 
-  uint64_t mask = hashmap->hashmap_capacity - 1, hash = STR_HASHER(key);
+  uint64_t mask = array_GetFlexArrayCapacity(hashmap->hashmap_structure) - 1,
+           hash = STR_HASHER(key);
   uint64_t perturb = hash, i = perturb & mask, arr_index;
-  HashmapEntries *entries_arr = array_RawData(hashmap->hashmap_entries);
-  while ((arr_index = hashmap->hashmap_structure[i]) != EMPTY_INDEX) {
+  HashmapEntries *entries_arr =
+      array_GetAppendArrayRawData(hashmap->hashmap_entries);
+  uint64_t *structure_arr =
+      array_GetFlexArrayRawData(hashmap->hashmap_structure);
+
+  while ((arr_index = structure_arr[i]) != EMPTY_INDEX) {
     if (arr_index != TOMBSTONE_INDEX) {
       MATCH_TOKEN(entries_arr[arr_index].key, key) {
         if (pStructure_index) {
@@ -279,9 +272,8 @@ static void FetchStructureAndEntryIndex(StrIntHashmap *hashmap, String key,
 
 StatusCode hashmap_DeleteEntry(StrIntHashmap *hashmap, String key) {
   assert(hashmap);
-
   uint64_t i_structure_index, j_structure_index;
-  uint64_t i_entry_index, j_entry_index;
+  uint64_t i_entry_index;
 
   FetchStructureAndEntryIndex(hashmap, key, &i_structure_index, &i_entry_index);
   if (i_structure_index == EMPTY_INDEX) {
@@ -289,23 +281,26 @@ StatusCode hashmap_DeleteEntry(StrIntHashmap *hashmap, String key) {
   }
 
   size_t hashmap_len = hashmap_GetLen(hashmap);
-  HashmapEntries *entries_arr = array_RawData(hashmap->hashmap_entries);
+  HashmapEntries *entries_arr =
+      array_GetAppendArrayRawData(hashmap->hashmap_entries);
   FetchStructureAndEntryIndex(hashmap, entries_arr[hashmap_len - 1].key,
                               &j_structure_index, NULL);
 
   // Repacking the array as order of this array doesn't matter.
-  array_SetIndexValue(hashmap->hashmap_entries, &entries_arr[hashmap_len - 1],
-                      i_entry_index);
-  array_Pop(hashmap->hashmap_entries);
+  array_SetAppendArrayIndexValue(hashmap->hashmap_entries,
+                                 &entries_arr[hashmap_len - 1], i_entry_index);
+  array_AppendArrayPop(hashmap->hashmap_entries);
 
   // Updating the string index, as the index of the string was moved.
-  hashmap->hashmap_structure[j_structure_index] =
-      hashmap->hashmap_structure[i_structure_index];
-  hashmap->hashmap_structure[i_structure_index] = TOMBSTONE_INDEX;
+  uint64_t *structure_arr =
+      array_GetFlexArrayRawData(hashmap->hashmap_structure);
+  structure_arr[j_structure_index] = structure_arr[i_structure_index];
+  structure_arr[i_structure_index] = TOMBSTONE_INDEX;
+
   return SUCCESS;
 }
 
 size_t hashmap_GetLen(StrIntHashmap *hashmap) {
   assert(hashmap);
-  return array_GetLen(hashmap->hashmap_entries);
+  return array_GetAppendArrayLen(hashmap->hashmap_entries);
 }
