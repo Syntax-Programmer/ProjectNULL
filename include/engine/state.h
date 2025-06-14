@@ -4,7 +4,7 @@
 #include "../elements/entity.h"
 #include "../elements/world.h"
 
-typedef COMMON_PACKED_ENUM{
+typedef PACKED_ENUM{
     UP = 1 << 0, DOWN = 1 << 1, LEFT = 1 << 2, RIGHT = 1 << 3, QUIT = 1 << 4,
 } InputFlags;
 

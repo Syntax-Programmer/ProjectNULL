@@ -1,12 +1,13 @@
 #pragma once
 
+#include <SDL2/SDL_render.h>
+#include <assert.h>
+#include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <stdbool.h>
-#include <string.h>
-#include <stddef.h>
 #include <stdlib.h>
-#include <assert.h>
+#include <string.h>
 
 #define WHITE 255, 255, 255, 255
 #define BLACK 0, 0, 0, 255
@@ -34,23 +35,39 @@
  * This macro ensures the enum is stored as a single `uint8_t`.
  */
 #if defined(_MSC_VER) && !defined(__clang__)
-#define COMMON_PACKED_ENUM __pragma(pack(push, 1)) enum __pragma(pack(pop))
+#define PACKED_ENUM __pragma(pack(push, 1)) enum __pragma(pack(pop))
 #else
-#define COMMON_PACKED_ENUM enum __attribute__((__packed__))
+#define PACKED_ENUM enum __attribute__((__packed__))
 #endif // defined(_MSC_VER) && !defined(__clang__)
 
-#define DEFAULT_STR_BUFFER_SIZE (64)
+#define CHAR_BUFFER_SIZE (64)
 
-typedef COMMON_PACKED_ENUM{SUCCESS, FAILURE} StatusCode;
+typedef PACKED_ENUM{
+    SUCCESS,
+    WARNING,            // Non-critical issue
+    RESOURCE_EXHAUSTED, // Allocation not possible, but existing data is valid
+    FAILURE,            // Critical error
+    FATAL_ERROR         // Unrecoverable
+} StatusCode;
 
 #ifdef DEBUG
-#define LOG(...) printf("Log: "); printf(__VA_ARGS__); printf("\n");
+#define LOG(...)                                                               \
+  printf("Log: ");                                                             \
+  printf(__VA_ARGS__);                                                         \
+  printf("\n")
 #else
 #define LOG(...)
 #endif
 
-typedef char String[DEFAULT_STR_BUFFER_SIZE];
+typedef char CharBuffer[CHAR_BUFFER_SIZE];
 
-#define MATCH_TOKEN(tok, value) if (!strncmp(tok, value, DEFAULT_STR_BUFFER_SIZE))
+#define CHAR_BUFFER_IS(tok, val) (!strncmp((tok), (val), CHAR_BUFFER_SIZE))
+#define MATCH_CHAR_BUFFER(tok, val) if (CHAR_BUFFER_IS(tok, val))
 #define STR_TO_BOOL(str)                                                       \
   ((!strcasecmp(str, "true") || !strcmp(str, "1")) ? true : false)
+
+/*
+ * Used for definitions of textures and such without the need to explicitly ask
+ * for renderer each time.
+ */
+extern SDL_Renderer *common_renderer;

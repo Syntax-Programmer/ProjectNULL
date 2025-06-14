@@ -6,11 +6,13 @@
 
 typedef struct StrIntHashmap StrIntHashmap;
 
-extern StrIntHashmap *hashmap_Create();
-extern void hashmap_Delete(StrIntHashmap *hashmap);
-extern StatusCode hashmap_AddEntry(StrIntHashmap *hashmap, String key,
-                                   int64_t val);
-extern int64_t hashmap_FetchValue(StrIntHashmap *hashmap, String key);
-extern StatusCode hashmap_DeleteEntry(StrIntHashmap *hashmap,
-                                      String key);
-extern size_t hashmap_GetLen(StrIntHashmap *hashmap);
+extern StrIntHashmap *hm_Create();
+extern void hm_Delete(StrIntHashmap *hashmap);
+extern StatusCode hm_AddEntry(StrIntHashmap *hashmap, CharBuffer key,
+                              int64_t val);
+extern int64_t hm_FetchValue(StrIntHashmap *hashmap, CharBuffer key);
+extern StatusCode hm_DeleteEntry(StrIntHashmap *hashmap, CharBuffer key);
+extern size_t hm_GetLen(StrIntHashmap *hashmap);
+extern void hm_ForEach(StrIntHashmap *hashmap,
+                       void (*foreach_callback)(const CharBuffer key,
+                                                int64_t *pVal));

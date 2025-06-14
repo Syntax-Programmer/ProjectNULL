@@ -5,7 +5,7 @@
 
 // #define TILE_SIZE 50
 
-// typedef COMMON_PACKED_ENUM{
+// typedef PACKED_ENUM{
 //     // If an entity can walk on the respective tile.
 //     TILE_WALKABLE = 1 << 0,
 //     // If an entity can swim on the given tile, triggering swimming physics.

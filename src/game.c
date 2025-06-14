@@ -10,7 +10,8 @@
 static void GetDeltaTime(uint32_t *pStart_time, uint32_t *pFrame_c,
                          double *pDelta_time);
 
-static StatusCode InitGame(SDL_Window **pWindow, SDL_Renderer **pRenderer);
+static StatusCode InitGame(SDL_Window **pWindow, SDL_Renderer **pRenderer,
+                           EntityProps **pProps);
 static void GameLoop(SDL_Renderer *renderer);
 static void ExitGame(SDL_Window **pWindow, SDL_Renderer **pRenderer);
 
@@ -34,8 +35,14 @@ static void GetDeltaTime(uint32_t *pStart_time, uint32_t *pFrame_c,
   }
 }
 
-static StatusCode InitGame(SDL_Window **pWindow, SDL_Renderer **pRenderer) {
-  return arena_Init() || gfx_InitSDL(pWindow, pRenderer);
+static StatusCode InitGame(SDL_Window **pWindow, SDL_Renderer **pRenderer,
+                           EntityProps **pProps) {
+  if (arena_Init() == FATAL_ERROR ||
+      gfx_InitSDL(pWindow, pRenderer) == FATAL_ERROR) {
+    return FATAL_ERROR;
+  }
+
+  return SUCCESS;
 }
 
 static void GameLoop(SDL_Renderer *renderer) {
@@ -48,7 +55,7 @@ static void GameLoop(SDL_Renderer *renderer) {
   uint32_t frame_c = 0, fps_calc_start_time = SDL_GetTicks(),
            fps_limiter_time = SDL_GetTicks();
 
-  while (1) {
+  while (true) {
     GetDeltaTime(&fps_calc_start_time, &frame_c, &delta_time);
     frame_c++;
 
@@ -56,7 +63,6 @@ static void GameLoop(SDL_Renderer *renderer) {
     if (HAS_FLAG(input_flags, QUIT)) {
       return;
     }
-
     /*
     FPS Clamping on all the stuff other than input polling.
     Input polling is not clamped to provide good responsiveness and crisp input.
@@ -77,8 +83,9 @@ static void ExitGame(SDL_Window **pWindow, SDL_Renderer **pRenderer) {
 void Game() {
   SDL_Window *window = NULL;
   SDL_Renderer *renderer = NULL;
+  EntityProps *props = NULL;
 
-  if (InitGame(&window, &renderer) == SUCCESS) {
+  if (InitGame(&window, &renderer, &props) != FATAL_ERROR) {
     GameLoop(renderer);
   }
   ExitGame(&window, &renderer);

@@ -55,10 +55,12 @@ enough and no other further nesting shall be needed.
 You may add nesting to please the humans into thinking this stuff is organized,
 but at the end of the day, the parser will just not consider it.
 */
-StatusCode yaml_ParserParse(const char *yaml_file,
-                            void (*allocator)(void *dest, String key,
-                                              String val, String id),
-                            void *dest) {
+StatusCode
+yaml_ParserParse(const char *yaml_file,
+                 StatusCode (*allocator)(void *dest, const CharBuffer key,
+                                         const CharBuffer val,
+                                         const CharBuffer id, void *extra),
+                 void *dest, void *extra) {
   assert(dest);
   FILE *fh = fopen(yaml_file, "rb");
   if (!fh) {
@@ -78,7 +80,7 @@ StatusCode yaml_ParserParse(const char *yaml_file,
   yaml_parser_set_input_file(&parser, fh);
 
   bool expecting_value = false, in_sequence = false;
-  String last_key = {0}, id = {0};
+  CharBuffer last_key = {0}, id = {0};
 
   while (true) {
     if (!yaml_parser_parse(&parser, &event)) {
@@ -127,9 +129,13 @@ StatusCode yaml_ParserParse(const char *yaml_file,
         No need to change any flags, continue providing new vals with same key
         and id.
         */
-        allocator(dest, last_key, val, id);
+        if (allocator(dest, last_key, val, id, extra) == FAILURE) {
+          return FAILURE;
+        }
       } else if (expecting_value) {
-        allocator(dest, last_key, val, id);
+        if (allocator(dest, last_key, val, id, extra) == FAILURE) {
+          return FAILURE;
+        }
         /*
         Normal value received, now next val should be a key
         */

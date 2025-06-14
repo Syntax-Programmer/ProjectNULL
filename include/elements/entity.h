@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../include/utils/hashmap.h"
+#include "../../include/utils/array.h"
 #include "../common.h"
 #include <SDL2/SDL.h>
 
@@ -11,33 +11,40 @@
  * After the initialization phase they can never change.
  */
 typedef struct {
-  StrIntHashmap *names;
-  uint16_t *speeds;
-  uint16_t *hps;
-  bool *is_intractable;
-  SDL_Texture **assets;
-  uint16_t *widths;
-  uint16_t *heights;
+  AppendArray *speeds;         // uint16_t array
+  AppendArray *hps;            // uint16_t array
+  AppendArray *is_intractable; // bool array
+  AppendArray *assets;         // SDL_Texture* array
+  AppendArray *widths;         // uint16_t array
+  AppendArray *heights;        // uint16_t array
   // void (**on_interact)(char name[DEFAULT_CHAR_BUFF_SIZE]);
 } EntityProps;
 
 typedef struct {
   /*
-   * During spawning once we can do a lookup of a name to get an index into the
-   * props array, and then use it instead of constant doing hash lookups each
-   * time we need data from the props struct.
+   * NOTE: Since it is a fixed size buffer, it doesn't make sense to use dynamic
+   * array definitions. So using plain arrays instead.
    */
-  uint64_t props_index[MAX_SPAWN_COUNT];
+  /*
+   * During spawning once we can do a lookup of the index into the
+   * props struct, and use the index each time we need data from the props
+   * struct.
+   */
+  uint32_t props_index[MAX_SPAWN_COUNT];
   SDL_FRect bounding_boxes[MAX_SPAWN_COUNT];
-  uint16_t hp[MAX_SPAWN_COUNT];
+  uint16_t hps[MAX_SPAWN_COUNT];
+  bool is_moving[MAX_SPAWN_COUNT];
+  // Sort of a stack data structure.
   struct {
-    uint16_t index[MAX_SPAWN_COUNT];
-    size_t len;
+    // MAX_SPAWN_COUNT, shall very rarely exceed 255.
+    uint8_t index[MAX_SPAWN_COUNT];
+    uint8_t len;
   } empty_slots, occupied_slots;
 } Entities;
 
-extern EntityProps *entity_InitProperties();
-extern void entity_DeleteProperties(EntityProps *props);
+extern StatusCode entity_InitProperties(EntityProps **pProps);
+extern void entity_DeleteProperties(EntityProps **pProps);
+extern void entity_DumpProperties(EntityProps *props);
 
 /*
  * #pragma once
@@ -54,7 +61,7 @@ extern void entity_DeleteProperties(EntityProps *props);
  } Entity_Meter;
 
  TODO: This needs to go after the introduction of yaml.
- typedef COMMON_PACKED_ENUM{NO_ENTITY, PLAYER, NPC} EntityType;
+ typedef PACKED_ENUM{NO_ENTITY, PLAYER, NPC} EntityType;
 
  typedef struct {
    int32_t arr[ENTITY_POOL_SIZE];

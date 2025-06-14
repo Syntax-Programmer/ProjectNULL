@@ -1,82 +1,192 @@
 #include "../../include/elements/entity.h"
 #include "../../include/utils/arena.h"
 #include "../../include/utils/yaml_parser.h"
+#include <SDL2/SDL_image.h>
 
 #define ENTITY_PROPERTIES_PATH ("gamedata/properties/entity_properties.yaml")
 #define MIN_PROPERTIES_SLOTS (8)
 
+/*
+ * Used to efficiently determine which property of a certain entity is defined.
+ * Using this allows us to no deal with string ids at all.
+ * Once the flag variable has all of the following flags, we have determined
+ * that its now fine to move forward. It can also stop from double definitions
+ * that can corrupt the array size sync.
+ */
+typedef PACKED_ENUM{
+    SPEED_DEFINED = 1 << 0,       HP_DEFINED = 1 << 1,
+    INTRACTABLE_DEFINED = 1 << 2, ASSET_DEFINED = 1 << 3,
+    WIDTH_DEFINED = 1 << 4,       HEIGHT_DEFINED = 1 << 5,
+} DefinedFlags;
+
+#define FULL_DEFINITION_MASK                                                   \
+  (SPEED_DEFINED | HP_DEFINED | INTRACTABLE_DEFINED | ASSET_DEFINED |          \
+   WIDTH_DEFINED | HEIGHT_DEFINED)
+
+#define TRY_PUSH(array, val_ptr, flag_bit)                                     \
+  do {                                                                         \
+    if (arr_AppendArrayPush((array), (val_ptr), NULL) == RESOURCE_EXHAUSTED) { \
+      LOG("Memory error during property assignment.");                         \
+      return FAILURE;                                                          \
+    }                                                                          \
+    SET_FLAG(*pDefinition_flags, (flag_bit));                                  \
+  } while (0)
+
 static StatusCode AllocateInitialPropertyMemory(EntityProps *props);
-static void AllocateProperties(void *dest, String key, String val, String id);
+static SDL_Texture *LoadTexture(const CharBuffer texture_path);
+static StatusCode AllocateProperties(void *dest, const CharBuffer key,
+                                     const CharBuffer val, const CharBuffer id,
+                                     void *definition_flags);
 
 static StatusCode AllocateInitialPropertyMemory(EntityProps *props) {
-  props->names = hashmap_Create();
-  props->speeds =
-      (uint16_t *)arena_Alloc(sizeof(uint16_t) * MIN_PROPERTIES_SLOTS);
-  props->hps = (uint16_t *)arena_Alloc(sizeof(uint16_t) * MIN_PROPERTIES_SLOTS);
-  props->is_intractable =
-      (bool *)arena_Alloc(sizeof(bool) * MIN_PROPERTIES_SLOTS);
-  props->assets =
-      (SDL_Texture **)arena_Alloc(sizeof(SDL_Texture *) * MIN_PROPERTIES_SLOTS);
-  props->widths =
-      (uint16_t *)arena_Alloc(sizeof(uint16_t) * MIN_PROPERTIES_SLOTS);
-  props->heights =
-      (uint16_t *)arena_Alloc(sizeof(uint16_t) * MIN_PROPERTIES_SLOTS);
+  props->speeds = arr_AppendArrayCreate(sizeof(uint16_t));
+  props->hps = arr_AppendArrayCreate(sizeof(uint16_t));
+  props->is_intractable = arr_AppendArrayCreate(sizeof(bool));
+  props->assets = arr_AppendArrayCreate(sizeof(SDL_Texture *));
+  props->widths = arr_AppendArrayCreate(sizeof(uint16_t));
+  props->heights = arr_AppendArrayCreate(sizeof(uint16_t));
 
-  if (!props->names || !props->speeds || !props->hps ||
-      !props->is_intractable || !props->assets || !props->widths ||
-      !props->heights) {
-    LOG("Error originated from entity.c AllocateInitialPropertyMemory.");
-    // names' memory deallocation is taken care off in the hashmap_Create().
-    entity_DeleteProperties(props);
-    return FAILURE;
+  if (!props->speeds || !props->hps || !props->is_intractable ||
+      !props->assets || !props->widths || !props->heights) {
+    LOG("Error allocating EntityProps struct.");
+    return RESOURCE_EXHAUSTED;
   }
 
   return SUCCESS;
 }
 
-static void AllocateProperties(void *dest, String key, String val, String id) {
-  EntityProps *props = (EntityProps *)dest;
+static SDL_Texture *LoadTexture(const CharBuffer texture_path) {
+  SDL_Surface *surface = IMG_Load(texture_path);
+  if (!surface) {
+    LOG("IMG_Load Error: %s", IMG_GetError());
+    return NULL;
+  }
 
-  int64_t value = hashmap_FetchValue(props->names, id);
+  SDL_Texture *texture = SDL_CreateTextureFromSurface(common_renderer, surface);
+  if (!texture) {
+    LOG("SDL_CreateTextureFromSurface Error: %s", SDL_GetError());
+    SDL_FreeSurface(surface);
+    return NULL;
+  }
+
+  SDL_FreeSurface(surface);
+  return texture;
 }
 
-EntityProps *entity_InitProperties() {
-  EntityProps *props = (EntityProps *)arena_Alloc(sizeof(EntityProps));
-  if (!props) {
+static StatusCode AllocateProperties(void *dest, const CharBuffer key,
+                                     const CharBuffer val, const CharBuffer id,
+                                     void *definition_flags) {
+  (void)id;
+
+  EntityProps *props = dest;
+  DefinedFlags *pDefinition_flags = definition_flags;
+
+  if (HAS_FLAG(*pDefinition_flags, FULL_DEFINITION_MASK)) {
+    *pDefinition_flags = 0;
+  }
+
+  if (CHAR_BUFFER_IS(key, "speed") &&
+      !HAS_FLAG(*pDefinition_flags, SPEED_DEFINED)) {
+    uint16_t speed = atoi(val);
+    TRY_PUSH(props->speeds, &speed, SPEED_DEFINED);
+  } else if (CHAR_BUFFER_IS(key, "hp") &&
+             !HAS_FLAG(*pDefinition_flags, HP_DEFINED)) {
+    uint16_t hp = atoi(val);
+    TRY_PUSH(props->hps, &hp, HP_DEFINED);
+  } else if (CHAR_BUFFER_IS(key, "is_intractable") &&
+             !HAS_FLAG(*pDefinition_flags, INTRACTABLE_DEFINED)) {
+    bool is_intractable = STR_TO_BOOL(val);
+    TRY_PUSH(props->is_intractable, &is_intractable, INTRACTABLE_DEFINED);
+  } else if (CHAR_BUFFER_IS(key, "asset_path") &&
+             !HAS_FLAG(*pDefinition_flags, ASSET_DEFINED)) {
+    // Special handling, needs to construct the texture here.
+    SDL_Texture *asset = LoadTexture(val);
+    if (!asset) {
+      LOG("Can't create asset for the entity props");
+      return FAILURE;
+    }
+    TRY_PUSH(props->assets, &asset, ASSET_DEFINED);
+  } else if (CHAR_BUFFER_IS(key, "width") &&
+             !HAS_FLAG(*pDefinition_flags, WIDTH_DEFINED)) {
+    uint16_t width = atoi(val);
+    TRY_PUSH(props->widths, &width, WIDTH_DEFINED);
+  } else if (CHAR_BUFFER_IS(key, "height") &&
+             !HAS_FLAG(*pDefinition_flags, HEIGHT_DEFINED)) {
+    uint16_t height = atoi(val);
+    TRY_PUSH(props->heights, &height, HEIGHT_DEFINED);
+  }
+
+  return SUCCESS;
+}
+
+static void ShrinkFitProps(EntityProps *props) {
+  arr_AppendArrayShrinkToFit(props->speeds);
+  arr_AppendArrayShrinkToFit(props->hps);
+  arr_AppendArrayShrinkToFit(props->is_intractable);
+  arr_AppendArrayShrinkToFit(props->assets);
+  arr_AppendArrayShrinkToFit(props->widths);
+  arr_AppendArrayShrinkToFit(props->heights);
+}
+
+StatusCode entity_InitProperties(EntityProps **pProps) {
+  *pProps = (EntityProps *)arena_Alloc(sizeof(EntityProps));
+  if (!*pProps) {
     LOG("Error originated from entity_InitProperties.");
-    return NULL;
+    return FATAL_ERROR;
+  }
+  CharBuffer prev_id;
+
+  if (AllocateInitialPropertyMemory(*pProps) == RESOURCE_EXHAUSTED) {
+    entity_DeleteProperties(pProps);
+    return FATAL_ERROR;
   }
 
-  if (AllocateInitialPropertyMemory(props) == FAILURE) {
-    return NULL;
+  if (yaml_ParserParse(ENTITY_PROPERTIES_PATH, AllocateProperties, *pProps,
+                       prev_id) == FAILURE) {
+    entity_DeleteProperties(pProps);
+    return FATAL_ERROR;
   }
 
-  if (yaml_ParserParse(ENTITY_PROPERTIES_PATH, AllocateProperties, props) ==
-      FAILURE) {
-    entity_DeleteProperties(props);
-    return NULL;
-  }
+  ShrinkFitProps(*pProps);
 
-  return props;
+  return SUCCESS;
 }
 
-void entity_DeleteProperties(EntityProps *props) {
-  if (props) {
-    hashmap_Delete(props->names);
-    arena_Dealloc(props->speeds, sizeof(uint16_t) * MIN_PROPERTIES_SLOTS);
-    arena_Dealloc(props->hps, sizeof(uint16_t) * MIN_PROPERTIES_SLOTS);
-    arena_Dealloc(props->is_intractable, sizeof(bool) * MIN_PROPERTIES_SLOTS);
-    arena_Dealloc(props->assets, sizeof(SDL_Texture *) * MIN_PROPERTIES_SLOTS);
-    arena_Dealloc(props->widths, sizeof(uint16_t) * MIN_PROPERTIES_SLOTS);
-    arena_Dealloc(props->heights, sizeof(uint16_t) * MIN_PROPERTIES_SLOTS);
-    props->names = NULL;
-    props->speeds = NULL;
-    props->hps = NULL;
-    props->is_intractable = NULL;
-    props->assets = NULL;
-    props->widths = NULL;
-    props->heights = NULL;
-    arena_Dealloc(props, sizeof(EntityProps));
+void entity_DeleteProperties(EntityProps **pProps) {
+  if (pProps && *pProps) {
+    arr_AppendArrayDelete((*pProps)->speeds);
+    arr_AppendArrayDelete((*pProps)->hps);
+    arr_AppendArrayDelete((*pProps)->is_intractable);
+    arr_AppendArrayDelete((*pProps)->assets);
+    arr_AppendArrayDelete((*pProps)->widths);
+    arr_AppendArrayDelete((*pProps)->heights);
+    (*pProps)->speeds = NULL;
+    (*pProps)->hps = NULL;
+    (*pProps)->is_intractable = NULL;
+    (*pProps)->assets = NULL;
+    (*pProps)->widths = NULL;
+    (*pProps)->heights = NULL;
+    arena_Dealloc(*pProps, sizeof(EntityProps));
+    *pProps = NULL;
+  }
+}
+
+void entity_DumpProperties(EntityProps *props) {
+  uint16_t *speeds = arr_GetAppendArrayRawData(props->speeds);
+  uint16_t *hps = arr_GetAppendArrayRawData(props->hps);
+  bool *is_intractable = arr_GetAppendArrayRawData(props->is_intractable);
+  SDL_Texture **asset = arr_GetAppendArrayRawData(props->assets);
+  uint16_t *widhts = arr_GetAppendArrayRawData(props->widths);
+  uint16_t *heights = arr_GetAppendArrayRawData(props->heights);
+
+  for (size_t i = 0; i < arr_GetAppendArrayLen(props->speeds); i++) {
+    printf("\n\nEntity Number: %zu\n", i + 1);
+    printf("Speed: %d\n", speeds[i]);
+    printf("HP: %d\n", hps[i]);
+    printf("Is intractable: %d\n", is_intractable[i]);
+    printf("Asset: %p\n", asset[i]);
+    printf("Width: %d\n", widhts[i]);
+    printf("Height: %d\n", heights[i]);
   }
 }
 
@@ -88,10 +198,10 @@ void entity_DeleteProperties(EntityProps *props) {
  #define BOUNDING_BOXES_PROPS_MIN_SIZE \ (sizeof(SDL_FRect) *
  ENTITY_PROPERTIES_MIN_SIZE) #define SPEEDS_PROPS_MIN_SIZE (sizeof(float) *
  ENTITY_PROPERTIES_MIN_SIZE)
- #define ENTITY_IDS_PROPS_MIN_SIZE \ (sizeof(char) * DEFAULT_STR_BUFFER_SIZE
+ #define ENTITY_IDS_PROPS_MIN_SIZE \ (sizeof(char) * CHAR_BUFFER_SIZE
  * ENTITY_PROPERTIES_MIN_SIZE)
  #define ASSET_PATHS_PROPS_MIN_SIZE \ (sizeof(char) *
- DEFAULT_STR_BUFFER_SIZE * ENTITY_PROPERTIES_MIN_SIZE)
+ CHAR_BUFFER_SIZE * ENTITY_PROPERTIES_MIN_SIZE)
  #define ASSETS_PROPS_MIN_SIZE \ (sizeof(SDL_Texture *) *
  ENTITY_PROPERTIES_MIN_SIZE)
 
@@ -211,11 +321,11 @@ void entity_DeleteProperties(EntityProps *props) {
 
  static bool EntityPropertyAllocator(void *dest, const char *key,
                                      const char *val, const char *id) {
-   MATCH_TOKEN(key, "speed") { return true; }
-   else MATCH_TOKEN(key, "bounding_box") {
+   MATCH_CHAR_BUFFER(key, "speed") { return true; }
+   else MATCH_CHAR_BUFFER(key, "bounding_box") {
      return true;
    }
-   else MATCH_TOKEN(key, "asset_path") {
+   else MATCH_CHAR_BUFFER(key, "asset_path") {
      return true;
    }
    else {

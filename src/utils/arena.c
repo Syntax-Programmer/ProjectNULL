@@ -62,14 +62,14 @@ StatusCode arena_Init(void) {
   arena = malloc(sizeof(Arena));
   if (!arena) {
     LOG("Unable to initialize the arena struct.");
-    return FAILURE;
+    return FATAL_ERROR;
   }
 
   arena->memory = malloc(DEFAULT_ARENA_SIZE);
   if (!arena->memory) {
     LOG("Unable to initialize arena memory.");
     free(arena);
-    return FAILURE;
+    return FATAL_ERROR;
   }
   arena_Reset();
 
@@ -136,11 +136,9 @@ static StatusCode AddFreeSpot(size_t offset, size_t size, int32_t left_index,
   } else if (arena->available_spots_len < MAX_ISOLATED_FREE_SPOTS) {
     arena->available_spots[arena->available_spots_len++] =
         (FreeSpots){.offset = offset, .size = size};
-    if (arena->available_spots_len == MAX_ISOLATED_FREE_SPOTS) {
-      LOG("Memory too fragmented, arena free spots limit reached");
-    }
   } else {
-    return FAILURE;
+    LOG("Memory too fragmented, arena free spots limit reached");
+    return RESOURCE_EXHAUSTED;
   }
 
   return SUCCESS;

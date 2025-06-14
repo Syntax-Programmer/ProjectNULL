@@ -2,8 +2,6 @@
 
 #include "../common.h"
 
-#define INVALID_OFFSET ((size_t)-1)
-
 #define arena_Dealloc(data, size) (arena_Realloc(data, size, 0))
 
 extern StatusCode arena_Init(void);

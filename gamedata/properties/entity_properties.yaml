@@ -1,4 +1,35 @@
-player:
+player0:
   speed: 150
-  bounding_box: [0, 0, 50, 50]
-  asset_path: "assets/"
+  hp: 100
+  is_intractable: true
+  asset_path: assets/
+  width: 50
+  height: 50
+player1:
+  speed: 150324
+  hp: 1002
+  is_intractable: true
+  asset_path: assets/
+  width: 50
+  height: 50324
+player2:
+  speed: 150
+  hp: 100324
+  is_intractable: false
+  asset_path: assets/
+  width: 50
+  height: 50
+player3:
+  speed: 150
+  hp: 100
+  is_intractable: true
+  asset_path: assets/
+  width: 50
+  height: 50
+player4:
+  speed: 15013
+  hp: 100
+  is_intractable: true
+  asset_path: assets/
+  width: 50
+  height: 5022
