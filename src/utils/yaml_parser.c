@@ -129,11 +129,11 @@ yaml_ParserParse(const char *yaml_file,
         No need to change any flags, continue providing new vals with same key
         and id.
         */
-        if (allocator(dest, last_key, val, id, extra) == FAILURE) {
+        if (allocator(dest, last_key, val, id, extra) == FATAL_ERROR) {
           return FAILURE;
         }
       } else if (expecting_value) {
-        if (allocator(dest, last_key, val, id, extra) == FAILURE) {
+        if (allocator(dest, last_key, val, id, extra) == FATAL_ERROR) {
           return FAILURE;
         }
         /*

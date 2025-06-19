@@ -6,7 +6,7 @@
 
 typedef struct StrIntHashmap StrIntHashmap;
 
-extern StrIntHashmap *hm_Create();
+extern StrIntHashmap *hm_Create(void);
 extern void hm_Delete(StrIntHashmap *hashmap);
 extern StatusCode hm_AddEntry(StrIntHashmap *hashmap, CharBuffer key,
                               int64_t val);

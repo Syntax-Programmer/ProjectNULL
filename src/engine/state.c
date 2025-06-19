@@ -39,7 +39,7 @@ void state_HandleState(InputFlags input_flags,
   // entity_HandleCollision(entities);
 }
 
-InputFlags GetInput() {
+InputFlags GetInput(void) {
   InputFlags input_flags = 0;
   SDL_Event event;
 

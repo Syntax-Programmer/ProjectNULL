@@ -2,16 +2,19 @@
 #include "../include/engine/gfx.h"
 #include "../include/engine/state.h"
 #include "../include/utils/arena.h"
+#include <time.h>
 
 #define MAX_FPS 144
 #define MIN_DT_MS (1000.0 / MAX_FPS)
 #define MIN_DT_SEC (MIN_DT_MS / 1000.0)
 
+#define MAX_SPAWN_POOL (48)
+#define ENTITY_LAYOUT_FILE ("gamedata/properties/entity_properties.yaml")
+
 static void GetDeltaTime(uint32_t *pStart_time, uint32_t *pFrame_c,
                          double *pDelta_time);
 
-static StatusCode InitGame(SDL_Window **pWindow, SDL_Renderer **pRenderer,
-                           EntityProps **pProps);
+static StatusCode InitGame(SDL_Window **pWindow, SDL_Renderer **pRenderer);
 static void GameLoop(SDL_Renderer *renderer);
 static void ExitGame(SDL_Window **pWindow, SDL_Renderer **pRenderer);
 
@@ -35,12 +38,23 @@ static void GetDeltaTime(uint32_t *pStart_time, uint32_t *pFrame_c,
   }
 }
 
-static StatusCode InitGame(SDL_Window **pWindow, SDL_Renderer **pRenderer,
-                           EntityProps **pProps) {
+static StatusCode InitGame(SDL_Window **pWindow, SDL_Renderer **pRenderer) {
+  srand(time(NULL));
   if (arena_Init() == FATAL_ERROR ||
       gfx_InitSDL(pWindow, pRenderer) == FATAL_ERROR) {
     return FATAL_ERROR;
   }
+
+  // *pEntity_module =
+  //     ent_CreateFullEntityModule(MAX_SPAWN_POOL, ENTITY_LAYOUT_FILE);
+  // if (!(*pEntity_module)) {
+  //   /*
+  //    * In future if any other module is created for various reasons, it
+  //    * failing can't be classified as a fatal error, but failing to create a
+  //    * single main one is sign of fatal error.
+  //    */
+  //   return FATAL_ERROR;
+  // }
 
   return SUCCESS;
 }
@@ -80,12 +94,11 @@ static void ExitGame(SDL_Window **pWindow, SDL_Renderer **pRenderer) {
   gfx_ExitSDL(pWindow, pRenderer);
 }
 
-void Game() {
+void Game(void) {
   SDL_Window *window = NULL;
   SDL_Renderer *renderer = NULL;
-  EntityProps *props = NULL;
 
-  if (InitGame(&window, &renderer, &props) != FATAL_ERROR) {
+  if (InitGame(&window, &renderer) != FATAL_ERROR) {
     GameLoop(renderer);
   }
   ExitGame(&window, &renderer);

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../common.h"
-#include "../elements/entity.h"
+#include "../elements/entities.h"
 #include "../elements/world.h"
 
 typedef PACKED_ENUM{
@@ -9,4 +9,4 @@ typedef PACKED_ENUM{
 } InputFlags;
 
 extern void state_HandleState(InputFlags input_flags, double delta_time);
-extern InputFlags GetInput();
+extern InputFlags GetInput(void);

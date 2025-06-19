@@ -44,6 +44,7 @@
 
 typedef PACKED_ENUM{
     SUCCESS,
+    CAN_NOT_EXECUTE,    // Some condition making the code not execute fully
     WARNING,            // Non-critical issue
     RESOURCE_EXHAUSTED, // Allocation not possible, but existing data is valid
     FAILURE,            // Critical error
@@ -51,18 +52,22 @@ typedef PACKED_ENUM{
 } StatusCode;
 
 #ifdef DEBUG
-#define LOG(...)                                                               \
-  printf("Log: ");                                                             \
-  printf(__VA_ARGS__);                                                         \
-  printf("\n")
+#define LOG(fmt, ...)                                                          \
+  do {                                                                         \
+    printf("Log: ");                                                           \
+    printf(fmt, ##__VA_ARGS__);                                                \
+    printf("\n");                                                              \
+  } while (0)
 #else
 #define LOG(...)
 #endif
 
 typedef char CharBuffer[CHAR_BUFFER_SIZE];
 
-#define CHAR_BUFFER_IS(tok, val) (!strncmp((tok), (val), CHAR_BUFFER_SIZE))
-#define MATCH_CHAR_BUFFER(tok, val) if (CHAR_BUFFER_IS(tok, val))
+#define CHARBUFF_EQUALS(tok, val) (!strncmp((tok), (val), CHAR_BUFFER_SIZE))
+#define CHARBUFF_NOT_EQUALS(tok, val) (!CHARBUFF_EQUALS(tok, val))
+#define IF_CHARBUFF_EQUALS(tok, val) if (CHARBUFF_EQUALS(tok, val))
+#define IF_CHARBUFF_NOT_EQUALS(tok, val) if (CHARBUFF_NOT_EQUALS(tok, val))
 #define STR_TO_BOOL(str)                                                       \
   ((!strcasecmp(str, "true") || !strcmp(str, "1")) ? true : false)
 
@@ -71,3 +76,18 @@ typedef char CharBuffer[CHAR_BUFFER_SIZE];
  * for renderer each time.
  */
 extern SDL_Renderer *common_renderer;
+
+typedef struct {
+  int32_t x, y;
+} IVec2;
+
+typedef struct {
+  float x, y;
+} FVec2;
+
+typedef struct {
+  int32_t w, h;
+} Dimension2;
+
+typedef IVec2 ICoord2;
+typedef FVec2 FCoord2;

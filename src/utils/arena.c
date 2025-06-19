@@ -24,7 +24,13 @@
 
 #define METADATA_SIZE (FREE_SPOTS_LEN_SIZE + FREE_SPOTS_SIZE)
 
-// 25 KB of total space + metadata size.
+/*
+ * 25 KB of total space + metadata size.
+ *
+ * Make sure this memory is around 2-4x the occupied memory during play-testing
+ * to make sure program never crashes and there is enough memory for unexpected
+ * scenarios.
+ */
 #define DEFAULT_ARENA_SIZE (METADATA_SIZE + (25 * 1024))
 
 typedef struct {
@@ -76,7 +82,7 @@ StatusCode arena_Init(void) {
   return SUCCESS;
 }
 
-void arena_Delete() {
+void arena_Delete(void) {
   if (arena) {
     if (arena->memory) {
       free(arena->memory);
@@ -246,13 +252,15 @@ void *arena_Realloc(void *old_data, size_t old_size, size_t new_size) {
   if (!new_data) {
     return NULL;
   }
+  // Callocing the extra space.
+  memset(new_data + old_size, 0, new_size - old_size);
   memmove(new_data, old_data, old_size);
   AddFreeSpot(old_offset, old_size, left_index, right_index);
 
   return new_data;
 }
 
-void arena_Reset() {
+void arena_Reset(void) {
   assert(arena);
   memset(arena->memory, 0, DEFAULT_ARENA_SIZE);
   arena->available_spots_len = 1;
@@ -262,14 +270,14 @@ void arena_Reset() {
       .offset = METADATA_SIZE, .size = DEFAULT_ARENA_SIZE - METADATA_SIZE};
 }
 
-void arena_Dump() {
+void arena_Dump(void) {
   assert(arena);
   size_t sum = 0;
 
   printf("\n\nArena Status\n");
   for (size_t i = 0; i < arena->available_spots_len; i++) {
-    printf("Free Spots: Size: %zu Offset: %zu\n",
-           arena->available_spots[i].size, arena->available_spots[i].offset);
+    printf("Free Spots: Offset: %zu Size: %zu\n",
+           arena->available_spots[i].offset, arena->available_spots[i].size);
     sum += arena->available_spots[i].size;
   }
   printf("Total arena free space: %zu bytes\n", sum);

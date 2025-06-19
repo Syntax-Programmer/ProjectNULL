@@ -1,3 +1,3 @@
 #pragma once
 
-extern void Game();
+extern void Game(void);

@@ -3,58 +3,60 @@
 #include "../common.h"
 
 // This is a sort of pythonic list. If you know what I mean.
-typedef struct AppendArray AppendArray;
+typedef struct AppendArr AppendArr;
 
 // This is C style resizable arrays.
-typedef struct FlexArray FlexArray;
+typedef struct FlexArr FlexArr;
 
 /* ----  APPEND ARRAY  ---- */
 
-extern AppendArray *arr_AppendArrayCreate(size_t data_size);
-extern void arr_AppendArrayDelete(AppendArray *append_array);
-extern size_t arr_GetAppendArrayLen(AppendArray *append_array);
-extern size_t arr_GetAppendArrayCapacity(AppendArray *append_array);
-extern void *arr_GetAppendArrayIndexValue(AppendArray *append_array,
+extern AppendArr *arr_AppendArrCreate(size_t data_size);
+extern AppendArr *arr_SizedAppendArrCreate(size_t data_size,
+                                               size_t capacity);
+extern void arr_AppendArrDelete(AppendArr *append_array);
+extern size_t arr_GetAppendArrLen(AppendArr *append_array);
+extern size_t arr_GetAppendArrCapacity(AppendArr *append_array);
+extern void *arr_GetAppendArrIndexValue(AppendArr *append_array,
                                           size_t index);
-extern StatusCode arr_SetAppendArrayIndexValue(AppendArray *append_array,
+extern StatusCode arr_SetAppendArrIndexValue(AppendArr *append_array,
                                                void *value, size_t index);
 extern StatusCode
-arr_AppendArrayPush(AppendArray *append_array, void *value,
+arr_AppendArrPush(AppendArr *append_array, void *value,
                     size_t (*grow_callback)(size_t old_capacity));
-extern void arr_AppendArrayPop(AppendArray *append_array);
-extern StatusCode arr_AppendArrayShrinkToFit(AppendArray *append_array);
-extern void arr_AppendArrayReset(AppendArray *append_array);
+extern void arr_AppendArrPop(AppendArr *append_array);
+extern StatusCode arr_AppendArrShrinkToFit(AppendArr *append_array);
+extern void arr_AppendArrReset(AppendArr *append_array);
 /*
  * NOTE: Only use this in internal modules with proper bounds checking. This is
  * only meant for code where you are sure what you are doing and want to
  * optimize for performance. This is a dangerous function if mistakes happen
  * with the ret value usage.
  */
-extern void *arr_GetAppendArrayRawData(AppendArray *append_array);
+extern void *arr_GetAppendArrRawData(AppendArr *append_array);
 
 /* ----  FLEX ARRAY  ---- */
 
-extern FlexArray *arr_FlexArrayCreate(size_t data_size,
+extern FlexArr *arr_FlexArrCreate(size_t data_size,
                                       size_t initial_capacity);
-extern void arr_FlexArrayDelete(FlexArray *flex_array);
-extern size_t arr_GetFlexArrayCapacity(FlexArray *flex_array);
-extern void *arr_GetFlexArrayIndexValue(FlexArray *flex_array, size_t index);
-extern StatusCode arr_SetFlexArrayIndexValue(FlexArray *flex_array, void *value,
+extern void arr_FlexArrDelete(FlexArr *flex_array);
+extern size_t arr_GetFlexArrCapacity(FlexArr *flex_array);
+extern void *arr_GetFlexArrIndexValue(FlexArr *flex_array, size_t index);
+extern StatusCode arr_SetFlexArrIndexValue(FlexArr *flex_array, void *value,
                                              size_t index);
-extern void arr_FlexArrayReset(FlexArray *flex_array);
+extern void arr_FlexArrReset(FlexArr *flex_array);
 /*
  * NOTE: Only use this in internal modules with proper bounds checking. This is
  * only meant for code where you are sure what you are doing and want to
  * optimize for performance. This is a dangerous function if mistakes happen
  * with the ret value usage.
  */
-extern void *arr_GetFlexArrayRawData(FlexArray *flex_array);
+extern void *arr_GetFlexArrRawData(FlexArr *flex_array);
 extern StatusCode
-arr_GrowFlexArray(FlexArray *flex_array,
+arr_GrowFlexArr(FlexArr *flex_array,
                   size_t (*grow_callback)(size_t old_capacity));
 
 /*
- * DESIGN RECOMMENDATION: The modules that use the AppendArray/FlexArray to
+ * DESIGN RECOMMENDATION: The modules that use the AppendArr/FlexArr to
  * define their own data/data-structs are allowed to use the raw-data
  * functionality to optimize for performance. But for modules that use those
  * modules' data/data-structs are recommended to use the provided API and skip
