@@ -71,8 +71,6 @@ typedef struct {
   ComponentMasks curr_mask;
 } ParsingExtra;
 
-#define ID_INVALID ("{≺0xDEADC0DE≻}")
-
 #define TRY_PUSH(array, val_ptr, flag_bit, mask)                               \
   do {                                                                         \
     if (arr_AppendArrPush((array), (val_ptr), NULL) == RESOURCE_EXHAUSTED) {   \
@@ -164,7 +162,7 @@ static StatusCode ParseIntoEntityLayout(void *dest, const CharBuffer key,
   EntityLayout *entity_layout = dest;
   ParsingExtra *parsing_extra = extra;
 
-  IF_CHARBUFF_EQUALS(parsing_extra->curr_id, ID_INVALID) {
+  if (parsing_extra->curr_id[0] == '\0') {
     snprintf(parsing_extra->curr_id, CHAR_BUFFER_SIZE, "%s", id);
   }
 
@@ -252,7 +250,7 @@ EntityLayout *ent_CreateEntityLayout(const char *layout_path) {
     return NULL;
   }
 
-  ParsingExtra extra = {.curr_id = ID_INVALID, .curr_mask = 0};
+  ParsingExtra extra = {.curr_id = "\0", .curr_mask = 0};
   if (yaml_ParserParse(layout_path, ParseIntoEntityLayout, entity_layout,
                        &extra) == FAILURE) {
     ent_DeleteEntityLayout(entity_layout);
