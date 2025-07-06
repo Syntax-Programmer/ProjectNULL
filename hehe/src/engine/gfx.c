@@ -36,8 +36,6 @@ StatusCode gfx_InitSDL(SDL_Window **pWindow, SDL_Renderer **pRenderer) {
     return FATAL_ERROR;
   }
 
-  common_renderer = *pRenderer;
-
   return SUCCESS;
 }
 

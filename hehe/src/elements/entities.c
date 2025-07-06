@@ -4,7 +4,6 @@
 #include "../../include/utils/yaml_parser.h"
 #include <SDL2/SDL_image.h>
 #include <SDL2/SDL_rect.h>
-#include <SDL2/SDL_render.h>
 #include <SDL2/SDL_surface.h>
 
 #define TYPEOF_SPEED_COMPONENT uint16_t
@@ -64,11 +63,14 @@ struct EntityModule {
 
 static StatusCode AllocateEntityLayout(EntityLayout **pEntity_layout);
 // It has a char buffer path, due to the yaml parser return type.
-static TYPEOF_ASSET_COMPONENT LoadTexture(const CharBuffer texture_path);
+static TYPEOF_ASSET_COMPONENT LoadTexture(const CharBuffer texture_path,
+                                          SDL_Renderer *renderer);
 
 typedef struct {
   CharBuffer curr_id;
   ComponentMasks curr_mask;
+  // TO make the assets.
+  SDL_Renderer *renderer;
 } ParsingExtra;
 
 #define TRY_PUSH(array, val_ptr, flag_bit, mask)                               \
@@ -123,7 +125,8 @@ static StatusCode AllocateEntityLayout(EntityLayout **pEntity_layout) {
   return SUCCESS;
 }
 
-static TYPEOF_ASSET_COMPONENT LoadTexture(const CharBuffer texture_path) {
+static TYPEOF_ASSET_COMPONENT LoadTexture(const CharBuffer texture_path,
+                                          SDL_Renderer *renderer) {
   SDL_Surface *surface = IMG_Load(texture_path);
   if (!surface) {
     LOG("IMG_Load Error: %s", IMG_GetError());
@@ -131,7 +134,7 @@ static TYPEOF_ASSET_COMPONENT LoadTexture(const CharBuffer texture_path) {
   }
 
   TYPEOF_ASSET_COMPONENT texture =
-      SDL_CreateTextureFromSurface(common_renderer, surface);
+      SDL_CreateTextureFromSurface(renderer, surface);
   if (!texture) {
     LOG("SDL_CreateTextureFromSurface Error: %s", SDL_GetError());
     SDL_FreeSurface(surface);
@@ -171,7 +174,7 @@ static StatusCode ParseIntoEntityLayout(void *dest, const CharBuffer key,
    * starting. Performing safety checks on the currently defined id.
    */
   IF_CHARBUFF_NOT_EQUALS(parsing_extra->curr_id, id) {
-    if (!HAS_FLAG(parsing_extra->curr_mask, MANDATORY_LAYOUT_COMPONENTS)) {
+    if (!HAS_ALL_FLAGS(parsing_extra->curr_mask, MANDATORY_LAYOUT_COMPONENTS)) {
       LOG("The id, %s, does not contain the all mandatory components of "
           "entities.",
           parsing_extra->curr_id);
@@ -194,7 +197,6 @@ static StatusCode ParseIntoEntityLayout(void *dest, const CharBuffer key,
       !HAS_FLAG(parsing_extra->curr_mask, SPEED_COMPONENT)) {
     TYPEOF_SPEED_COMPONENT speed =
         (TYPEOF_SPEED_COMPONENT)strtoul(val, NULL, 10);
-    ;
     TRY_PUSH(entity_layout->speeds, &speed, SPEED_COMPONENT,
              parsing_extra->curr_mask);
   } else if (CHARBUFF_EQUALS(key, "hp") &&
@@ -204,7 +206,7 @@ static StatusCode ParseIntoEntityLayout(void *dest, const CharBuffer key,
   } else if (CHARBUFF_EQUALS(key, "asset_path") &&
              !HAS_FLAG(parsing_extra->curr_mask, ASSET_COMPONENT)) {
     // Special handling, needs to construct the texture here.
-    TYPEOF_ASSET_COMPONENT asset = LoadTexture(val);
+    TYPEOF_ASSET_COMPONENT asset = LoadTexture(val, parsing_extra->renderer);
     if (!asset) {
       LOG("Can't create asset for the entity layout");
       return FAILURE;
@@ -243,14 +245,15 @@ static void ShrinkFitEntityLayout(EntityLayout *entity_layout) {
   arr_AppendArrShrinkToFit(entity_layout->comp_masks);
 }
 
-EntityLayout *ent_CreateEntityLayout(const char *layout_path) {
+EntityLayout *ent_CreateEntityLayout(const char *layout_path,
+                                     SDL_Renderer *renderer) {
   EntityLayout *entity_layout;
   if (AllocateEntityLayout(&entity_layout) == RESOURCE_EXHAUSTED) {
     ent_DeleteEntityLayout(entity_layout);
     return NULL;
   }
 
-  ParsingExtra extra = {.curr_id = "\0", .curr_mask = 0};
+  ParsingExtra extra = {.curr_id = "\0", .curr_mask = 0, .renderer = renderer};
   if (yaml_ParserParse(layout_path, ParseIntoEntityLayout, entity_layout,
                        &extra) == FAILURE) {
     ent_DeleteEntityLayout(entity_layout);
@@ -365,13 +368,14 @@ EntityModule *ent_CreateEntityModule() {
 }
 
 EntityModule *ent_CreateFullEntityModule(size_t pool_capacity,
-                                         const char *layout_path) {
+                                         const char *layout_path,
+                                         SDL_Renderer *renderer) {
   EntityModule *entity_module = ent_CreateEntityModule();
   if (!entity_module) {
     return NULL;
   }
 
-  entity_module->entity_layout = ent_CreateEntityLayout(layout_path);
+  entity_module->entity_layout = ent_CreateEntityLayout(layout_path, renderer);
   if (!entity_module->entity_layout) {
     ent_DeleteEntityModule(entity_module);
     return NULL;
@@ -410,7 +414,7 @@ void ent_AttachEntityLayoutToModule(EntityModule *entity_module,
   entity_module->entity_layout = entity_layout;
 }
 
-EntityPool *ent_DetathEntityPoolFromModule(EntityModule *entity_module) {
+EntityPool *ent_DetachEntityPoolFromModule(EntityModule *entity_module) {
   assert(entity_module);
   EntityPool *entity_pool = entity_module->entity_pool;
   entity_module->entity_pool = NULL;

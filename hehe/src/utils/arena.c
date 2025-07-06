@@ -34,7 +34,7 @@
 #define DEFAULT_ARENA_SIZE (METADATA_SIZE + (25 * 1024))
 
 typedef struct {
-  size_t offset, size;
+  size_t offset, sizes;
 } FreeSpots;
 
 typedef struct {
@@ -47,9 +47,9 @@ typedef struct {
 
   size_t available_spots_len;
   FreeSpots *available_spots;
-} Arena;
+} Mem;
 
-static Arena *arena;
+static Mem *arena;
 
 /*
  * No direct access to the arena memory permitted. To manipulate the memory,
@@ -65,7 +65,7 @@ static StatusCode AddFreeSpot(size_t offset, size_t size, int32_t left_index,
                               int32_t right_index);
 
 StatusCode arena_Init(void) {
-  arena = malloc(sizeof(Arena));
+  arena = malloc(sizeof(Mem));
   if (!arena) {
     LOG("Unable to initialize the arena struct.");
     return FATAL_ERROR;
@@ -99,15 +99,15 @@ void *arena_Alloc(size_t data_size) {
   void *allocated_location = NULL;
 
   for (size_t i = 0; i < arena->available_spots_len; i++) {
-    if (arena->available_spots[i].size == data_size) {
+    if (arena->available_spots[i].sizes == data_size) {
       allocated_location = arena->memory + arena->available_spots[i].offset;
       arena->available_spots[i] =
           arena->available_spots[--arena->available_spots_len];
       break;
-    } else if (arena->available_spots[i].size > data_size) {
+    } else if (arena->available_spots[i].sizes > data_size) {
       allocated_location = arena->memory + arena->available_spots[i].offset;
       arena->available_spots[i].offset += data_size;
-      arena->available_spots[i].size -= data_size;
+      arena->available_spots[i].sizes -= data_size;
       break;
     }
   }
@@ -130,18 +130,18 @@ static StatusCode AddFreeSpot(size_t offset, size_t size, int32_t left_index,
    */
   if (left_index != -1 && right_index != -1) {
     // Merging all 3 adjacent block.
-    arena->available_spots[left_index].size +=
-        size + arena->available_spots[right_index].size;
+    arena->available_spots[left_index].sizes +=
+        size + arena->available_spots[right_index].sizes;
     arena->available_spots[right_index] =
         arena->available_spots[--arena->available_spots_len];
   } else if (left_index != -1) {
-    arena->available_spots[left_index].size += size;
+    arena->available_spots[left_index].sizes += size;
   } else if (right_index != -1) {
     arena->available_spots[right_index].offset = offset;
-    arena->available_spots[right_index].size += size;
+    arena->available_spots[right_index].sizes += size;
   } else if (arena->available_spots_len < MAX_ISOLATED_FREE_SPOTS) {
     arena->available_spots[arena->available_spots_len++] =
-        (FreeSpots){.offset = offset, .size = size};
+        (FreeSpots){.offset = offset, .sizes = size};
   } else {
     LOG("Memory too fragmented, arena free spots limit reached");
     return RESOURCE_EXHAUSTED;
@@ -203,7 +203,7 @@ void *arena_Realloc(void *old_data, size_t old_size, size_t new_size) {
 
   int32_t left_index = -1, right_index = -1;
   for (size_t i = 0; i < arena->available_spots_len; i++) {
-    if (arena->available_spots[i].offset + arena->available_spots[i].size ==
+    if (arena->available_spots[i].offset + arena->available_spots[i].sizes ==
         old_offset) {
       left_index = i;
     } else if (arena->available_spots[i].offset == old_offset + old_size) {
@@ -228,7 +228,7 @@ void *arena_Realloc(void *old_data, size_t old_size, size_t new_size) {
 
   if (right_index != -1) {
     size_t right_offset = arena->available_spots[right_index].offset,
-           right_size = arena->available_spots[right_index].size;
+           right_size = arena->available_spots[right_index].sizes;
     // Chance for the arena to grow in place, rather than reallocation.
     if (old_offset + old_size == right_offset) {
       if (old_offset + new_size == right_offset + right_size) {
@@ -239,7 +239,7 @@ void *arena_Realloc(void *old_data, size_t old_size, size_t new_size) {
       } else if (old_offset + new_size < right_offset + right_size) {
         // Can grow to partially fill the available memory
         arena->available_spots[right_index].offset += new_size - old_size;
-        arena->available_spots[right_index].size -= new_size - old_size;
+        arena->available_spots[right_index].sizes -= new_size - old_size;
         return old_data;
       }
     }
@@ -267,7 +267,7 @@ void arena_Reset(void) {
 
   arena->available_spots = arena->memory + FREE_SPOTS_OFFSET;
   arena->available_spots[0] = (FreeSpots){
-      .offset = METADATA_SIZE, .size = DEFAULT_ARENA_SIZE - METADATA_SIZE};
+      .offset = METADATA_SIZE, .sizes = DEFAULT_ARENA_SIZE - METADATA_SIZE};
 }
 
 void arena_Dump(void) {
@@ -277,8 +277,8 @@ void arena_Dump(void) {
   printf("\n\nArena Status\n");
   for (size_t i = 0; i < arena->available_spots_len; i++) {
     printf("Free Spots: Offset: %zu Size: %zu\n",
-           arena->available_spots[i].offset, arena->available_spots[i].size);
-    sum += arena->available_spots[i].size;
+           arena->available_spots[i].offset, arena->available_spots[i].sizes);
+    sum += arena->available_spots[i].sizes;
   }
   printf("Total arena free space: %zu bytes\n", sum);
   printf("Total free block: %zu\n\n", arena->available_spots_len);

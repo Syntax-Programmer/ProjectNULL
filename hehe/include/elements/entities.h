@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../common.h"
+#include <SDL2/SDL_render.h>
 
 // Layout defined from file parsing.
 typedef struct EntityLayout EntityLayout;
@@ -16,7 +17,8 @@ typedef struct EntityModule EntityModule;
 
 /* ----  ENTITY_LAYOUT  ---- */
 
-extern EntityLayout *ent_CreateEntityLayout(const char *layout_path);
+extern EntityLayout *ent_CreateEntityLayout(const char *layout_path,
+                                            SDL_Renderer *renderer);
 extern void ent_DeleteEntityLayout(EntityLayout *entity_layout);
 
 /* ----  ENTITY POOL  ---- */
@@ -28,14 +30,15 @@ extern void ent_DeleteEntityPool(EntityPool *entity_pool);
 
 extern EntityModule *ent_CreateEntityModule();
 extern EntityModule *ent_CreateFullEntityModule(size_t pool_capacity,
-                                                const char *layout_path);
+                                                const char *layout_path,
+                                                SDL_Renderer *renderer);
 // NOTE: This will also delete any attached modules.
 extern void ent_DeleteEntityModule(EntityModule *entity_module);
 extern void ent_AttachEntityPoolToModule(EntityModule *entity_module,
                                          EntityPool *entity_pool);
 extern void ent_AttachEntityLayoutToModule(EntityModule *entity_module,
                                            EntityLayout *entity_layout);
-extern EntityPool *ent_DetathEntityPoolFromModule(EntityModule *entity_module);
+extern EntityPool *ent_DetachEntityPoolFromModule(EntityModule *entity_module);
 extern EntityLayout *
 ent_DetachEntityLayoutFromModule(EntityModule *entity_module);
 

@@ -1,6 +1,5 @@
 #pragma once
 
-#include <SDL2/SDL_render.h>
 #include <assert.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -29,6 +28,7 @@
  * optimized approach to calculating movement components.
  */
 #define HAS_FLAG(var, flag) (((var) & (flag)) != 0)
+#define HAS_ALL_FLAGS(var, required_flags) (((var) & (required_flags)) == (required_flags))
 
 /*
  * A more memory-efficient enum for when the total number of entries is ≤ 255.
@@ -70,12 +70,6 @@ typedef char CharBuffer[CHAR_BUFFER_SIZE];
 #define IF_CHARBUFF_NOT_EQUALS(tok, val) if (CHARBUFF_NOT_EQUALS(tok, val))
 #define STR_TO_BOOL(str)                                                       \
   ((!strcasecmp(str, "true") || !strcmp(str, "1")) ? true : false)
-
-/*
- * Used for definitions of textures and such without the need to explicitly ask
- * for renderer each time.
- */
-extern SDL_Renderer *common_renderer;
 
 typedef struct {
   int32_t x, y;
