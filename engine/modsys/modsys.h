@@ -25,6 +25,8 @@ typedef enum {
    X
 } ModSysProps;
 
+#define ALL_PROPS (69420)
+
 #ifdef __cplusplus
 }
 #endif
