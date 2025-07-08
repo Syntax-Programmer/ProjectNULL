@@ -57,6 +57,7 @@ typedef u8 StatusCode;
 #define MEMORY_ALLOCATION_FAILURE (2)
 #define ATTEMPTED_INVALID_ACCESS (3)
 #define CANNOT_EXECUTE (4)
+#define POINTER_USE_AFTER_FREE (5)
 
 extern void SetStatusCode(StatusCode codes);
 extern const char *GetStatusCode();

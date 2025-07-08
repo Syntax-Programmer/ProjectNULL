@@ -1,5 +1,5 @@
 #include "modsys.h"
-#include "../types/array.h"
+#include "../utils/mem.h"
 
 #define INTERNALS
 /*
@@ -7,67 +7,53 @@
  */
 #undef INTERNALS
 
-struct __ModSys {
-  /*
-   * BuffArr *prop1;
-   * BuffArr *prop2;
-   * ...
-   */
-  BuffArr *prop_masks;
-  Vector *empty_slots;
-  Vector *occupied_slots;
+#define PROP_ARR_CAP (8)
+
+typedef struct ModSysChunk {
+  void *props_data;
+  u64 occupied_count;
+  struct ModSysChunk *next;
+} ModSysChunk;
+
+struct __ModSysTemplate {
+  ModSysChunk *template_data;
+  ModSysProps prop;
+  u64 prop_count;
+  struct __ModSysTemplate *next;
 };
 
-#define DEFAULT_POOL_CAP (16)
-
-static ModSys *__curr_bound_system = NULL;
-
-// Users should always create a different ModSys for different concerns.
-ModSys *modsys_CreateCustomSystem(u64 cap, ModSysProps props) {
-  ModSys *sys = malloc(sizeof(ModSys));
-  if (!sys) {
-    SetStatusCode(MEMORY_ALLOCATION_FAILURE);
-    return NULL;
-  }
-
-  /*
-   * if (HAS_FLAG(props, prop1)) {
-      sys.prop1 = arr_create();
-      }
-      if (HAS_FLAG(props, prop2)) }
-      sys.prop2 = arr_create();
-      }
-      ...
-   */
-
-  return sys;
-}
-
-ModSys *modsys_CreateDefaultSystem() {
-  return modsys_CreateCustomSystem(DEFAULT_POOL_CAP, ALL_PROPS);
-}
-
-StatusCode modsys_DeleteSystem();
+/*
+ * This points to the exact memory where that particular enmtity is stored.
+ *
+ * After deleting an entity it is curropted to prevent use after free.
+ *
+ * The delete function should take a ModSyshandle **, and then *handle = NULL to
+ * completely nullify the address making it safe.
+ *
+ * Use a dynamically growing pool allocator to store these for faster
+ * allocations, with virtually 0 cost.
+ */
+struct __ModSysHandle {
+  ModSysTemplate *template_ptr;
+  ModSysChunk *data_chunk_ptr;
+  u64 tempalate_chunk_index;
+};
 
 /*
- * The following functions will act on the currently binded system. This is to
- * reduce argument clutter.
+ * This represents our ecs system. Each new entity definition will be stored
+ * here.
+ *
+ * Also the templates users make, will be stored here and a pointer to the
+ * template will be given to the user, to let them keep it as they want.
+ *
+ * Each template will be identified by the props it holds and each template
+ * holds unique set of props.
  */
-void modsys_BindSystem(ModSys *system) { __curr_bound_system = system; }
+ModSysTemplate *__template_definition_state = NULL;
 
-ModSysHandle modsys_CreateEntry();
-StatusCode modsys_DeleteEntry(ModSysHandle handle);
+ModSysChunk *Add
 
-StatusCode modsys_AttachProperty(ModSysHandle handle, ModSysProps prop,
-                                 void *prop_data);
-StatusCode modsys_DetachProperties(ModSysHandle handle, ModSysProps props);
-StatusCode modsys_ClearProperties(ModSysHandle handle);
+StatusCode modsys_Init() {
 
-void *modsys_GetPropDataPtr(ModSysHandle handle, ModSysProps prop);
-StatusCode modsys_GetPropData(ModSysHandle handle, ModSysProps prop,
-                              void *dest);
-StatusCode modsys_SetPropData(ModSysHandle handle, ModSysProps prop,
-                              void *data);
-
-StatusCode modsys_PropForEach(ModSysProps prop,
-                              void (*foreach_callback)(void *prop));
+    return SUCCESS;
+}

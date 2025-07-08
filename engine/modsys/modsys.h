@@ -12,20 +12,14 @@ extern "C" {
 
 // Modular System, a typedef of ECS for more better name.
 
-typedef struct __ModSys ModSys;
+typedef struct __ModSysTemplate ModSysTemplate;
 
-typedef u16 ModSysHandle;
+typedef struct __ModSysHandle ModSysHandle;
 
 typedef enum {
-  /*
-   * MODSYS_HEALTH,
-   * MODSYS_PHYSICS,
-   * ...
-   */
-   X
+  NO_PROPS = 0,
+  // Must be a bitflag.
 } ModSysProps;
-
-#define ALL_PROPS (69420)
 
 #ifdef __cplusplus
 }

@@ -41,3 +41,6 @@ Then:
 #include "properties/prop1.h"
 #include "properties/prop2.h"
 #include "properties/prop3.h"
+
+
+No property will be an opaque pointer. This is so that they can be allocated inside the template pool for cache efficiency.

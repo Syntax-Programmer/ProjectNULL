@@ -14,6 +14,8 @@ const char *GetStatusCode() {
     return "Attempted invalid/out-of-bounds access.";
   case CANNOT_EXECUTE:
     return "Can not execute function due to internal conditions.";
+  case POINTER_USE_AFTER_FREE:
+    return "A invalid pointer access to memory you no longer own.";
   default:
     return "Unknown error code.";
   }
