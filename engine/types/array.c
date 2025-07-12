@@ -18,14 +18,14 @@ Vector *arr_VectorCreate(u64 elem_size) {
 Vector *arr_VectorCustomCreate(u64 elem_size, u64 cap) {
   Vector *arr = malloc(sizeof(Vector));
   if (!arr) {
-    SetStatusCode(MEMORY_ALLOCATION_FAILURE);
+    printf("Can not create a new vector, memory failure.\n");
     return NULL;
   }
 
   arr->mem = malloc(cap * elem_size);
   if (!(arr->mem)) {
     free(arr);
-    SetStatusCode(MEMORY_ALLOCATION_FAILURE);
+    printf("Can not create a new vector, memory failure.\n");
     return NULL;
   }
 
@@ -38,8 +38,8 @@ Vector *arr_VectorCustomCreate(u64 elem_size, u64 cap) {
 
 StatusCode arr_VectorDelete(Vector *arr) {
   if (!arr) {
-    SetStatusCode(INVALID_FUNCTION_ARGUMENTS);
-    return INVALID_FUNCTION_ARGUMENTS;
+    printf("Can not delete an invalid vector.\n");
+    return FAILURE;
   }
 
   free(arr->mem);
@@ -50,12 +50,12 @@ StatusCode arr_VectorDelete(Vector *arr) {
 
 StatusCode arr_VectorGet(const Vector *arr, u64 i, void *dest) {
   if (!arr || !dest) {
-    SetStatusCode(INVALID_FUNCTION_ARGUMENTS);
-    return INVALID_FUNCTION_ARGUMENTS;
+    printf("Invalid arguments for arr_VectorGet function.\n");
+    return FAILURE;
   }
   if (i >= arr->len) {
-    SetStatusCode(ATTEMPTED_INVALID_ACCESS);
-    return ATTEMPTED_INVALID_ACCESS;
+    printf("Can not access vector array beyond its len.\n");
+    return FAILURE;
   }
 
   memcpy(dest, MEM_OFFSET(arr->mem, i * arr->elem_size), arr->elem_size);
@@ -64,13 +64,13 @@ StatusCode arr_VectorGet(const Vector *arr, u64 i, void *dest) {
 }
 
 StatusCode arr_VectorSet(Vector *arr, u64 i, const void *data) {
-  if (!arr) {
-    SetStatusCode(INVALID_FUNCTION_ARGUMENTS);
-    return INVALID_FUNCTION_ARGUMENTS;
+  if (!arr || !data) {
+    printf("Invalid arguments for arr_VectorSet function.\n");
+    return FAILURE;
   }
   if (i >= arr->len) {
-    SetStatusCode(ATTEMPTED_INVALID_ACCESS);
-    return ATTEMPTED_INVALID_ACCESS;
+    printf("Can not access vector array beyond its len.\n");
+    return FAILURE;
   }
 
   memcpy(MEM_OFFSET(arr->mem, i * arr->elem_size), data, arr->elem_size);
@@ -79,22 +79,21 @@ StatusCode arr_VectorSet(Vector *arr, u64 i, const void *data) {
 }
 
 StatusCode arr_VectorPush(Vector *arr, const void *data,
-                         const u64 (*grow_callback)(u64 old_cap)) {
+                          const u64 (*grow_callback)(u64 old_cap)) {
   if (!arr || !data) {
-    SetStatusCode(INVALID_FUNCTION_ARGUMENTS);
-    return INVALID_FUNCTION_ARGUMENTS;
+    printf("Invalid arguments for arr_VectorPush function.\n");
+    return FAILURE;
   }
   if (arr->len == arr->cap) {
     u64 new_cap = (grow_callback) ? grow_callback(arr->cap) : arr->cap * 2;
     if (new_cap < arr->cap) {
-      printf("Can't grow push array, faulty grow callback. "
+      printf("Can not grow push array, faulty grow callback. "
              "Default grow strat to be used.");
       new_cap = arr->cap * 2;
     }
     void *new_mem = realloc(arr->mem, new_cap * arr->elem_size);
     if (!new_mem) {
-      SetStatusCode(MEMORY_ALLOCATION_FAILURE);
-      return MEMORY_ALLOCATION_FAILURE;
+      printf("Can not push more into vector, memory reallocation failed.\n");
     }
     arr->mem = new_mem;
     arr->cap = new_cap;
@@ -108,12 +107,12 @@ StatusCode arr_VectorPush(Vector *arr, const void *data,
 
 StatusCode arr_VectorPop(Vector *arr, void *dest) {
   if (!arr || !dest) {
-    SetStatusCode(INVALID_FUNCTION_ARGUMENTS);
-    return INVALID_FUNCTION_ARGUMENTS;
+    printf("Invalid arguments for arr_VectorPush function.\n");
+    return FAILURE;
   }
   if (!arr->len) {
-    SetStatusCode(CANNOT_EXECUTE);
-    return CANNOT_EXECUTE;
+    printf("Can not pop more from the vector array.\n");
+    return FAILURE;
   }
 
   memcpy(dest, MEM_OFFSET(arr->mem, --(arr->len) * arr->elem_size),
@@ -124,7 +123,7 @@ StatusCode arr_VectorPop(Vector *arr, void *dest) {
 
 u64 arr_VectorLen(const Vector *arr) {
   if (!arr) {
-    SetStatusCode(INVALID_FUNCTION_ARGUMENTS);
+    printf("Can not get len of an invalid vector.\n");
     return (u64)-1;
   }
 
@@ -133,14 +132,14 @@ u64 arr_VectorLen(const Vector *arr) {
 
 StatusCode arr_VectorFit(Vector *arr) {
   if (!arr) {
-    SetStatusCode(INVALID_FUNCTION_ARGUMENTS);
-    return INVALID_FUNCTION_ARGUMENTS;
+    printf("Can not shrink fit an invalid vector.\n");
+    return FAILURE;
   }
 
   void *new_mem = realloc(arr->mem, arr->len * arr->elem_size);
   if (!new_mem) {
-    SetStatusCode(MEMORY_ALLOCATION_FAILURE);
-    return MEMORY_ALLOCATION_FAILURE;
+    printf("Can not shrink fit the vector, memory reallocation failed.\n");
+    return FAILURE;
   }
 
   arr->cap = arr->len;
@@ -151,8 +150,8 @@ StatusCode arr_VectorFit(Vector *arr) {
 
 StatusCode arr_VectorReset(Vector *arr) {
   if (!arr) {
-    SetStatusCode(INVALID_FUNCTION_ARGUMENTS);
-    return INVALID_FUNCTION_ARGUMENTS;
+    printf("Can not reset an invalid vector.\n");
+    return FAILURE;
   }
 
   memset(arr->mem, 0, arr->cap * arr->elem_size);
@@ -163,7 +162,7 @@ StatusCode arr_VectorReset(Vector *arr) {
 
 void *arr_VectorRaw(const Vector *arr) {
   if (!arr) {
-    SetStatusCode(INVALID_FUNCTION_ARGUMENTS);
+    printf("Can not get raw data of an invalid vector.\n");
     return NULL;
   }
 
@@ -171,10 +170,10 @@ void *arr_VectorRaw(const Vector *arr) {
 }
 
 StatusCode arr_VectorForEach(Vector *arr,
-                            const void (*foreach_callback)(void *val)) {
+                             const void (*foreach_callback)(void *val)) {
   if (!arr || !foreach_callback) {
-    SetStatusCode(INVALID_FUNCTION_ARGUMENTS);
-    return INVALID_FUNCTION_ARGUMENTS;
+    printf("Invalid arguments for arr_VectorForEach function.\n");
+    return FAILURE;
   }
 
   for (u64 i = 0; i < arr->len; i++) {
@@ -195,14 +194,14 @@ struct __BuffArr {
 BuffArr *arr_BuffArrCreate(u64 cap, u64 elem_size) {
   BuffArr *arr = malloc(sizeof(BuffArr));
   if (!arr) {
-    SetStatusCode(MEMORY_ALLOCATION_FAILURE);
+    printf("Can not create a new buffer array, memory failure.\n");
     return NULL;
   }
 
   arr->mem = calloc(cap, elem_size);
   if (!(arr->mem)) {
     free(arr);
-    SetStatusCode(MEMORY_ALLOCATION_FAILURE);
+    printf("Can not create a new buffer array, memory failure.\n");
     return NULL;
   }
 
@@ -214,8 +213,8 @@ BuffArr *arr_BuffArrCreate(u64 cap, u64 elem_size) {
 
 StatusCode arr_BuffArrDelete(BuffArr *arr) {
   if (!arr) {
-    SetStatusCode(INVALID_FUNCTION_ARGUMENTS);
-    return INVALID_FUNCTION_ARGUMENTS;
+    printf("Can not delete an invalid buffer array.\n");
+    return FAILURE;
   }
 
   free(arr->mem);
@@ -226,12 +225,12 @@ StatusCode arr_BuffArrDelete(BuffArr *arr) {
 
 StatusCode arr_BuffArrGet(const BuffArr *arr, u64 i, void *dest) {
   if (!arr || !dest) {
-    SetStatusCode(INVALID_FUNCTION_ARGUMENTS);
-    return INVALID_FUNCTION_ARGUMENTS;
+    printf("Invalid arguments for arr_BuffArrGet function.\n");
+    return FAILURE;
   }
   if (i >= arr->cap) {
-    SetStatusCode(ATTEMPTED_INVALID_ACCESS);
-    return ATTEMPTED_INVALID_ACCESS;
+    printf("Can not access buffer array beyond its cap.\n");
+    return FAILURE;
   }
 
   memcpy(dest, MEM_OFFSET(arr->mem, i * arr->elem_size), arr->elem_size);
@@ -240,13 +239,13 @@ StatusCode arr_BuffArrGet(const BuffArr *arr, u64 i, void *dest) {
 }
 
 StatusCode arr_BuffArrSet(BuffArr *arr, u64 i, const void *data) {
-  if (!arr) {
-    SetStatusCode(INVALID_FUNCTION_ARGUMENTS);
-    return INVALID_FUNCTION_ARGUMENTS;
+  if (!arr || !data) {
+    printf("Invalid arguments for arr_BuffArrSet function.\n");
+    return FAILURE;
   }
   if (i >= arr->cap) {
-    SetStatusCode(ATTEMPTED_INVALID_ACCESS);
-    return ATTEMPTED_INVALID_ACCESS;
+    printf("Can not access buffer array beyond its cap.\n");
+    return FAILURE;
   }
 
   memcpy(MEM_OFFSET(arr->mem, i * arr->elem_size), data, arr->elem_size);
@@ -254,25 +253,32 @@ StatusCode arr_BuffArrSet(BuffArr *arr, u64 i, const void *data) {
   return SUCCESS;
 }
 
-u64 arr_BuffArrCap(const BuffArr *arr) { return arr->cap; }
+u64 arr_BuffArrCap(const BuffArr *arr) {
+  if (!arr) {
+    printf("Can not get cap of an invalid buffer array.\n");
+    return FAILURE;
+  }
+
+  return arr->cap;
+}
 
 StatusCode arr_BuffArrGrow(BuffArr *arr,
-                          const u64 (*grow_callback)(u64 old_cap)) {
+                           const u64 (*grow_callback)(u64 old_cap)) {
   if (!arr) {
-    SetStatusCode(INVALID_FUNCTION_ARGUMENTS);
-    return INVALID_FUNCTION_ARGUMENTS;
+    printf("Can not grow an invalid buffer array.\n");
+    return FAILURE;
   }
 
   u64 new_cap = (grow_callback) ? grow_callback(arr->cap) : arr->cap * 2;
   if (new_cap < arr->cap) {
-    printf("Can't grow buffer array, faulty grow callback. "
+    printf("Can not grow buffer array, faulty grow callback. "
            "Default grow strat to be used.");
     new_cap = arr->cap * 2;
   }
   void *new_mem = realloc(arr->mem, new_cap * arr->elem_size);
   if (!new_mem) {
-    SetStatusCode(MEMORY_ALLOCATION_FAILURE);
-    return MEMORY_ALLOCATION_FAILURE;
+    printf("Can not grow buffer array, memory reallocation failed.\n");
+    return FAILURE;
   }
   arr->mem = new_mem;
   arr->cap = new_cap;
@@ -282,8 +288,8 @@ StatusCode arr_BuffArrGrow(BuffArr *arr,
 
 StatusCode arr_BuffArrReset(BuffArr *arr) {
   if (!arr) {
-    SetStatusCode(INVALID_FUNCTION_ARGUMENTS);
-    return INVALID_FUNCTION_ARGUMENTS;
+    printf("Can not reset an invalid buffer array.\n");
+    return FAILURE;
   }
 
   memset(arr->mem, 0, arr->cap * arr->elem_size);
@@ -293,7 +299,7 @@ StatusCode arr_BuffArrReset(BuffArr *arr) {
 
 void *arr_BuffArrRaw(const BuffArr *arr) {
   if (!arr) {
-    SetStatusCode(INVALID_FUNCTION_ARGUMENTS);
+    printf("Can not get raw data an invalid buffer array.\n");
     return NULL;
   }
 
@@ -301,10 +307,10 @@ void *arr_BuffArrRaw(const BuffArr *arr) {
 }
 
 StatusCode arr_BuffArrForEach(BuffArr *arr,
-                             const void (*foreach_callback)(void *val)) {
+                              const void (*foreach_callback)(void *val)) {
   if (!arr || !foreach_callback) {
-    SetStatusCode(INVALID_FUNCTION_ARGUMENTS);
-    return INVALID_FUNCTION_ARGUMENTS;
+    printf("Invalid arguments for arr_BuffArrForEach function.\n");
+    return FAILURE;
   }
 
   for (u64 i = 0; i < arr->cap; i++) {

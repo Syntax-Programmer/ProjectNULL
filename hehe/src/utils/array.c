@@ -18,7 +18,7 @@ struct FlexArr {
 AppendArr *arr_AppendArrCreate(size_t data_size) {
   AppendArr *append_array = arena_Alloc(sizeof(AppendArr));
   if (!append_array) {
-    LOG("Can't create an append_array due to memory failure.");
+    LOG("Can not create an append_array due to memory failure.");
     return NULL;
   }
 
@@ -29,7 +29,7 @@ AppendArr *arr_AppendArrCreate(size_t data_size) {
   append_array->data = arena_Alloc(data_size * MIN_ARRAY_SLOTS);
   if (!(append_array->data)) {
     arr_AppendArrDelete(append_array);
-    LOG("Can't create an append_array due to memory failure.");
+    LOG("Can not create an append_array due to memory failure.");
     return NULL;
   }
 
@@ -39,7 +39,7 @@ AppendArr *arr_AppendArrCreate(size_t data_size) {
 AppendArr *arr_SizedAppendArrCreate(size_t data_size, size_t capacity) {
   AppendArr *append_array = arena_Alloc(sizeof(AppendArr));
   if (!append_array) {
-    LOG("Can't create an append_array due to memory failure.");
+    LOG("Can not create an append_array due to memory failure.");
     return NULL;
   }
 
@@ -50,7 +50,7 @@ AppendArr *arr_SizedAppendArrCreate(size_t data_size, size_t capacity) {
   append_array->data = arena_Alloc(data_size * capacity);
   if (!(append_array->data)) {
     arr_AppendArrDelete(append_array);
-    LOG("Can't create an append_array due to memory failure.");
+    LOG("Can not create an append_array due to memory failure.");
     return NULL;
   }
 
@@ -82,7 +82,7 @@ size_t arr_GetAppendArrCapacity(AppendArr *append_array) {
 void *arr_GetAppendArrIndexValue(AppendArr *append_array, size_t index) {
   assert(append_array);
   if (index >= append_array->len) {
-    LOG("Can't get append_array index beyond available indices.");
+    LOG("Can not get append_array index beyond available indices.");
     return NULL;
   }
 
@@ -93,7 +93,7 @@ StatusCode arr_SetAppendArrIndexValue(AppendArr *append_array, void *value,
                                         size_t index) {
   assert(append_array);
   if (index >= append_array->len) {
-    LOG("Can't set append_array index beyond available indices.");
+    LOG("Can not set append_array index beyond available indices.");
     return WARNING;
   }
 
@@ -114,7 +114,7 @@ StatusCode arr_AppendArrPush(AppendArr *append_array, void *value,
             : append_array->capacity + (append_array->capacity >> 1);
     if (new_capacity <= append_array->capacity) {
       LOG("AppendArr size increase callback producing faulty results. New "
-          "size can't be less than original. Reverting to default resizing "
+          "size Can not be less than original. Reverting to default resizing "
           "scheme.");
       new_capacity = append_array->capacity + (append_array->capacity >> 1);
     }
@@ -122,7 +122,7 @@ StatusCode arr_AppendArrPush(AppendArr *append_array, void *value,
         append_array->data, (append_array->data_size * append_array->capacity),
         (append_array->data_size * new_capacity));
     if (!data) {
-      LOG("Can't add any more elements to append_array, memory allocation "
+      LOG("Can not add any more elements to append_array, memory allocation "
           "failure.");
       return RESOURCE_EXHAUSTED;
     }
@@ -130,7 +130,7 @@ StatusCode arr_AppendArrPush(AppendArr *append_array, void *value,
     append_array->capacity = new_capacity;
   }
 
-  // Since this can't ever fail in this case, we need not check for errors.
+  // Since this Can not ever fail in this case, we need not check for errors.
   arr_SetAppendArrIndexValue(append_array, value, append_array->len++);
 
   return SUCCESS;
@@ -139,7 +139,7 @@ StatusCode arr_AppendArrPush(AppendArr *append_array, void *value,
 void arr_AppendArrPop(AppendArr *append_array) {
   assert(append_array);
   if (append_array->len == 0) {
-    LOG("Empty append_array, can't pop more.");
+    LOG("Empty append_array, Can not pop more.");
     return;
   }
   append_array->len--;
@@ -172,7 +172,7 @@ void *arr_GetAppendArrRawData(AppendArr *append_array) {
 FlexArr *arr_FlexArrCreate(size_t data_size, size_t initial_capacity) {
   FlexArr *flex_array = arena_Alloc(sizeof(FlexArr));
   if (!flex_array) {
-    LOG("Can't create an flex_array due to memory failure.");
+    LOG("Can not create an flex_array due to memory failure.");
     return NULL;
   }
 
@@ -182,7 +182,7 @@ FlexArr *arr_FlexArrCreate(size_t data_size, size_t initial_capacity) {
   flex_array->data = arena_Alloc(data_size * initial_capacity);
   if (!(flex_array->data)) {
     arr_FlexArrDelete(flex_array);
-    LOG("Can't create an append_array due to memory failure.");
+    LOG("Can not create an append_array due to memory failure.");
     return NULL;
   }
 
@@ -209,7 +209,7 @@ size_t arr_GetFlexArrCapacity(FlexArr *flex_array) {
 void *arr_GetFlexArrIndexValue(FlexArr *flex_array, size_t index) {
   assert(flex_array);
   if (index >= flex_array->capacity) {
-    LOG("Can't get append_array index beyond available capacity.");
+    LOG("Can not get append_array index beyond available capacity.");
     return NULL;
   }
   return (uint8_t *)flex_array->data + (flex_array->data_size * index);
@@ -219,7 +219,7 @@ StatusCode arr_SetFlexArrIndexValue(FlexArr *flex_array, void *value,
                                       size_t index) {
   assert(flex_array);
   if (index >= flex_array->capacity) {
-    LOG("Can't get append_array index beyond available capacity.");
+    LOG("Can not get append_array index beyond available capacity.");
     return WARNING;
   }
   void *dest = (uint8_t *)flex_array->data + (flex_array->data_size * index);
@@ -245,7 +245,7 @@ StatusCode arr_GrowFlexArr(FlexArr *flex_array,
                       : flex_array->capacity + (flex_array->capacity >> 1);
   if (new_capacity <= flex_array->capacity) {
     LOG("FlexArr size increase callback producing faulty results. New "
-        "size can't be less than original. Reverting to default resizing "
+        "size Can not be less than original. Reverting to default resizing "
         "scheme.");
     new_capacity = flex_array->capacity + (flex_array->capacity >> 1);
   }
@@ -254,7 +254,7 @@ StatusCode arr_GrowFlexArr(FlexArr *flex_array,
                              (flex_array->data_size * flex_array->capacity),
                              (flex_array->data_size * new_capacity));
   if (!data) {
-    LOG("Can't add any more elements to append_array, memory allocation "
+    LOG("Can not add any more elements to append_array, memory allocation "
         "failure.");
     return RESOURCE_EXHAUSTED;
   }

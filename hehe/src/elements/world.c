@@ -48,7 +48,7 @@
 // //   if (ini_parse(asset_props_file_path, ParseTilePropertiesINI, pTile_props) <
 // //       0) {
 // // #ifdef DEBUG
-// //     fprintf(stderr, "Can't load '%s'\n", asset_props_file_path);
+// //     fprintf(stderr, "Can not load '%s'\n", asset_props_file_path);
 // // #endif
 // //     *pTile_props = (TileProperties){0};
 // //     return false;

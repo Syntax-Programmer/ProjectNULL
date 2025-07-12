@@ -76,7 +76,7 @@ typedef struct {
 #define TRY_PUSH(array, val_ptr, flag_bit, mask)                               \
   do {                                                                         \
     if (arr_AppendArrPush((array), (val_ptr), NULL) == RESOURCE_EXHAUSTED) {   \
-      LOG("Can't grow entity layout arrays anymore. Memory exhausted.");       \
+      LOG("Can not grow entity layout arrays anymore. Memory exhausted.");       \
       return FATAL_ERROR;                                                      \
     }                                                                          \
     SET_FLAG(mask, (flag_bit));                                                \
@@ -104,7 +104,7 @@ static void ResolveCollision(SDL_FRect *dimension1, SDL_FRect *dimension2);
 static StatusCode AllocateEntityLayout(EntityLayout **pEntity_layout) {
   *pEntity_layout = arena_Alloc(sizeof(EntityLayout));
   if (!(*pEntity_layout)) {
-    LOG("Can't allocate memory for the entity layout.");
+    LOG("Can not allocate memory for the entity layout.");
     return RESOURCE_EXHAUSTED;
   }
 
@@ -118,7 +118,7 @@ static StatusCode AllocateEntityLayout(EntityLayout **pEntity_layout) {
 
   if (!layout->speeds || !layout->hps || !layout->assets || !layout->widths ||
       !layout->heights || !layout->comp_masks) {
-    LOG("Can't allocate memory for the entity layout.");
+    LOG("Can not allocate memory for the entity layout.");
     return RESOURCE_EXHAUSTED;
   }
 
@@ -151,7 +151,7 @@ static StatusCode PadNonMandatoryComponents(ComponentMasks mask,
     TYPEOF_SPEED_COMPONENT speed = 0;
     if (arr_AppendArrPush(entity_layout->speeds, &speed, NULL) ==
         RESOURCE_EXHAUSTED) {
-      LOG("Can't grow entity layout arrays anymore. Memory exhausted.");
+      LOG("Can not grow entity layout arrays anymore. Memory exhausted.");
       return RESOURCE_EXHAUSTED;
     }
   }
@@ -182,7 +182,7 @@ static StatusCode ParseIntoEntityLayout(void *dest, const CharBuffer key,
     }
     if (arr_AppendArrPush(entity_layout->comp_masks, &parsing_extra->curr_mask,
                           NULL) == RESOURCE_EXHAUSTED) {
-      LOG("Can't grow entity layout arrays anymore. Memory exhausted.");
+      LOG("Can not grow entity layout arrays anymore. Memory exhausted.");
       return FATAL_ERROR;
     }
     if (PadNonMandatoryComponents(parsing_extra->curr_mask, entity_layout) ==
@@ -208,7 +208,7 @@ static StatusCode ParseIntoEntityLayout(void *dest, const CharBuffer key,
     // Special handling, needs to construct the texture here.
     TYPEOF_ASSET_COMPONENT asset = LoadTexture(val, parsing_extra->renderer);
     if (!asset) {
-      LOG("Can't create asset for the entity layout");
+      LOG("Can not create asset for the entity layout");
       return FAILURE;
     }
     TRY_PUSH(entity_layout->assets, &asset, ASSET_COMPONENT,
@@ -289,7 +289,7 @@ static StatusCode AllocateEntityPool(EntityPool **pEntity_pool,
                                      size_t pool_capacity) {
   *pEntity_pool = arena_Alloc(sizeof(EntityPool));
   if (!(*pEntity_pool)) {
-    LOG("Can't allocate memory for the entity pool.");
+    LOG("Can not allocate memory for the entity pool.");
     return RESOURCE_EXHAUSTED;
   }
 
@@ -314,7 +314,7 @@ static StatusCode AllocateEntityPool(EntityPool **pEntity_pool,
   if (!entity_pool->bboxes || !entity_pool->hps || !entity_pool->assets ||
       !entity_pool->speeds || !entity_pool->comp_masks ||
       !entity_pool->empty_slots || !entity_pool->occupied_slots) {
-    LOG("Can't allocate memory for the entity pool.");
+    LOG("Can not allocate memory for the entity pool.");
     return RESOURCE_EXHAUSTED;
   }
 
@@ -331,7 +331,7 @@ EntityPool *ent_CreateEntityPool(size_t pool_capacity) {
   for (TYPEOF_SLOTS_ARRAY i = 0; i < pool_capacity; i++) {
     /*
      * Since both empty and occupied arrays were defined with the capacity
-     * preset, this really can't every fail. Also with this, no need to shrink
+     * preset, this really Can not every fail. Also with this, no need to shrink
      * fit.
      */
     arr_AppendArrPush(entity_pool->empty_slots, &i, NULL);
@@ -360,7 +360,7 @@ void ent_DeleteEntityPool(EntityPool *entity_pool) {
 EntityModule *ent_CreateEntityModule() {
   EntityModule *entity_module = arena_Alloc(sizeof(EntityModule));
   if (!entity_module) {
-    LOG("Can't allocate memory for entity module.");
+    LOG("Can not allocate memory for entity module.");
     return NULL;
   }
 
@@ -441,7 +441,7 @@ StatusCode ent_SpawnEntityRandom(EntityModule *entity_module, float spawn_x,
   size_t empty_spot_len = arr_GetAppendArrLen(entity_pool->empty_slots);
 
   if (empty_spot_len == 0) {
-    LOG("Can't spawn any more entities, limit reached.");
+    LOG("Can not spawn any more entities, limit reached.");
     return CAN_NOT_EXECUTE;
   }
 
@@ -491,12 +491,12 @@ StatusCode ent_DespawnEntity(EntityModule *entity_module, uint32_t index) {
   ComponentMasks *comp_masks = arr_GetFlexArrRawData(entity_pool->comp_masks);
 
   if (entity_pool_cap < index || comp_masks[index] == 0) {
-    LOG("Can't despawn a non-existing entity.");
+    LOG("Can not despawn a non-existing entity.");
     return CAN_NOT_EXECUTE;
   }
 
   comp_masks[index] = 0;
-  // This can't really fail.
+  // This Can not really fail.
   arr_AppendArrPush(entity_pool->empty_slots, &index, NULL);
 
   TYPEOF_SLOTS_ARRAY *occupied_slots =

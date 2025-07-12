@@ -50,7 +50,7 @@ static StatusCode InitGame(SDL_Window **pWindow, SDL_Renderer **pRenderer) {
   // if (!(*pEntity_module)) {
   //   /*
   //    * In future if any other module is created for various reasons, it
-  //    * failing can't be classified as a fatal error, but failing to create a
+  //    * failing Can not be classified as a fatal error, but failing to create a
   //    * single main one is sign of fatal error.
   //    */
   //   return FATAL_ERROR;

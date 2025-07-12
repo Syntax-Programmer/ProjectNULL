@@ -74,7 +74,7 @@ static void FetchStructureAndEntryIndex(StrIntHashmap *hashmap, CharBuffer key,
 StrIntHashmap *hm_Create(void) {
   StrIntHashmap *hashmap = arena_Alloc(sizeof(StrIntHashmap));
   if (!hashmap) {
-    LOG("Can't allocate memory for StrIntHashmap.");
+    LOG("Can not allocate memory for StrIntHashmap.");
     return NULL;
   }
 
@@ -83,7 +83,7 @@ StrIntHashmap *hm_Create(void) {
   hashmap->hm_entries = arr_AppendArrCreate(sizeof(HashmapEntries));
 
   if (!hashmap->hm_structure || !hashmap->hm_entries) {
-    LOG("Can't allocate memory for StrIntHashmap.");
+    LOG("Can not allocate memory for StrIntHashmap.");
     hm_Delete(hashmap);
     return NULL;
   }
@@ -121,7 +121,7 @@ static StatusCode GrowHashmapStructure(StrIntHashmap *hashmap) {
   assert(hashmap);
   if (arr_GrowFlexArr(hashmap->hm_structure, GrowHashmapStructureCallback) ==
       RESOURCE_EXHAUSTED) {
-    LOG("Can't resize the hashmap structure array.");
+    LOG("Can not resize the hashmap structure array.");
     return RESOURCE_EXHAUSTED;
   }
   FlexArr *structure_array = arr_GetFlexArrRawData(hashmap->hm_structure);
@@ -159,7 +159,7 @@ StatusCode hm_AddEntry(StrIntHashmap *hashmap, CharBuffer key, int64_t val) {
   }
   if (hm_len == structure_capacity) {
     LOG("Hashmap is filled completely because previous resize attempt failed. "
-        "Can't add anymore data.");
+        "Can not add anymore data.");
     return RESOURCE_EXHAUSTED;
   }
 
@@ -193,10 +193,10 @@ StatusCode hm_AddEntry(StrIntHashmap *hashmap, CharBuffer key, int64_t val) {
   if (arr_AppendArrPush(hashmap->hm_entries, &new_entry,
                           GrowHashmapEntriesCallback) == RESOURCE_EXHAUSTED) {
     LOG("Hashmap entries array is filled completely because previous resize "
-        "attempt failed. Can't add anymore data.");
+        "attempt failed. Can not add anymore data.");
     return RESOURCE_EXHAUSTED;
   }
-  // i can't ever be out of bounds.
+  // i Can not ever be out of bounds.
   arr_SetFlexArrIndexValue(hashmap->hm_structure, &hm_len, i);
 
   return SUCCESS;

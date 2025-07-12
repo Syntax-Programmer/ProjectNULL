@@ -53,14 +53,7 @@ typedef double f64;
 typedef u8 StatusCode;
 
 #define SUCCESS (0)
-#define INVALID_FUNCTION_ARGUMENTS (1)
-#define MEMORY_ALLOCATION_FAILURE (2)
-#define ATTEMPTED_INVALID_ACCESS (3)
-#define CANNOT_EXECUTE (4)
-#define POINTER_USE_AFTER_FREE (5)
-
-extern void SetStatusCode(StatusCode codes);
-extern const char *GetStatusCode();
+#define FAILURE (1)
 
 #ifdef __cplusplus
 }

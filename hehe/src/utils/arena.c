@@ -151,13 +151,13 @@ static StatusCode AddFreeSpot(size_t offset, size_t size, int32_t left_index,
 }
 
 /*
- * This basically exploits the thing that C can't check how memory is changes
+ * This basically exploits the thing that C Can not check how memory is changes
  * within the arena. So we just update the metadata and then let the allocated
  * data think it can write more data at the same place, while nothing was
  * preventing it from doing the same in the first place.
  *
  *
- * If this returns NULL, it means original data is preserved, and it can't
+ * If this returns NULL, it means original data is preserved, and it Can not
  * reallocate more memory for whatever reason.
  */
 void *arena_Realloc(void *old_data, size_t old_size, size_t new_size) {
@@ -211,7 +211,7 @@ void *arena_Realloc(void *old_data, size_t old_size, size_t new_size) {
     }
   }
   if (new_size == old_size) {
-    LOG("Can't realloc to the same old size.");
+    LOG("Can not realloc to the same old size.");
     return NULL;
   } else if (new_size < old_size) {
     /*
