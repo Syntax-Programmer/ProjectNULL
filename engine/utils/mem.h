@@ -19,6 +19,12 @@ extern StatusCode mem_BumpArenaReset(BumpArena *arena);
 
 typedef struct __PoolArena PoolArena;
 
+PoolArena *mem_PoolArenaCreate(u64 block_size);
+StatusCode mem_PoolArenaDelete(PoolArena *arena);
+void *mem_PoolArenaAlloc(PoolArena *arena);
+StatusCode mem_PoolArenaFree(PoolArena *arena, void *entry);
+StatusCode mem_PoolArenaReset(PoolArena *arena);
+
 #ifdef __cplusplus
 }
 #endif

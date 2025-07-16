@@ -14,7 +14,7 @@ typedef __Props Prop;
 // All the public function.
 // All these function shall be like "propfoo_FuncX()"
 
-#ifdef INTERNALS
+#ifdef PROPS_INTERNALS
 
 // All the function declarations, not to be revealed to the end user.
 // All these function shall be like "__propfoo_FuncYSecret()"
@@ -30,11 +30,11 @@ Then:
 
 
 /* modsys.c */
-#define INTERNALS
+#define PROPS_INTERNALS
 #include "properties/prop1.h"
 #include "properties/prop2.h"
 #include "properties/prop3.h"
-#undef INTERNALS
+#undef PROPS_INTERNALS
 
 /* modsys.h */
 // For uses to use them in defining.

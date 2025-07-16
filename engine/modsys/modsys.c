@@ -9,10 +9,10 @@
 
 #define PROP_ARR_CAP (16)
 
-typedef struct ModSysChunk {
+typedef struct __ModSysChunk {
   void *props_data;
   u64 occupied_count;
-  struct ModSysChunk *next;
+  struct __ModSysChunk *next;
 } ModSysChunk;
 
 struct __ModSysTemplate {
@@ -35,9 +35,24 @@ struct __ModSysTemplate {
 struct __ModSysHandle {
   ModSysTemplate *template_ptr;
   ModSysChunk *data_chunk_ptr;
-  u64 tempalate_chunk_index;
+  u64 template_chunk_index;
 };
 
+typedef struct {
+  /*
+   * Prop1 prop1;
+   * Prop2 prop2;
+   * ...
+   */
+  ModSysProps props;
+} ModSysPreLockBuffer;
+/*
+ * Entity defs are written here before copying it into the actual ecs.
+ * This reduces the number of defintion reallocation, search time and overall
+ * memory handling. After definiton we just push the buffer into the ecs in one
+ * copy operation.
+ */
+ModSysPreLockBuffer *__pre_lock_buffer = NULL;
 /*
  * This allows for us to only malloc at runtime, the actual memory chunk whose
  * size is unknown. Otherwise, the chunk struct itself is constant memory size
@@ -69,51 +84,106 @@ PoolArena *__handle_alloc_arena = NULL;
  */
 ModSysTemplate *__template_definition_state = NULL;
 
-static StatusCode ModSysChunkAdd(ModSysChunk **pHead, u64 total_prop_size);
+static StatusCode ModSysChunkAdd(ModSysTemplate *template);
+static StatusCode ModSysTemplateAdd(ModSysProps props);
 
-static StatusCode ModSysChunkAdd(ModSysChunk **pHead, u64 total_prop_size) {
-  ModSysChunk *new_chunk = malloc(sizeof(ModSysChunk));
+static StatusCode ModSysChunkAdd(ModSysTemplate *template) {
+  assert(template && __chunk_alloc_arena);
+
+  ModSysChunk *new_chunk = mem_PoolArenaAlloc(__chunk_alloc_arena);
   if (!new_chunk) {
     printf("Can not create a new modsys chunk, memory failure.\n");
     return FAILURE;
   }
 
-  new_chunk->props_data = malloc(total_prop_size * PROP_ARR_CAP);
-  if (!(new_chunk->props_data)) {
+  new_chunk->occupied_count = 0;
+  new_chunk->props_data = malloc(template->total_prop_size * PROP_ARR_CAP);
+  if (!new_chunk->props_data) {
+    mem_PoolArenaFree(__chunk_alloc_arena, new_chunk);
     printf("Can not create a new modsys chunk, memory failure.\n");
     return FAILURE;
   }
-  new_chunk->occupied_count = 0;
 
-  new_chunk->next = *pHead;
-  *pHead = new_chunk;
+  new_chunk->next = template->template_data;
+  template->template_data = new_chunk;
 
   return SUCCESS;
 }
 
-static StatusCode ModSysTemplateAdd(ModSysTemplate **pHead, ModSysProps props) {
-  ModSysTemplate *template = malloc(sizeof(ModSysTemplate));
-  if (!template) {
-      printf("Can not create a new modsys template, memory failure.\n");
-      return FAILURE;
-  }
-  template->props = props;
-  template->props_count = __builtin_popcount((i32)props);
-  template->total_prop_size = 0;
+static StatusCode ModSysTemplateAdd(ModSysProps props) {
+  assert(__template_alloc_arena && __template_definition_state);
 
+  if (props == NO_PROPS) {
+    printf("Can not allocate a template for props = NO_PROPS.\n");
+    return FAILURE;
+  }
+
+  ModSysTemplate *new_template = mem_PoolArenaAlloc(__template_alloc_arena);
+  if (!new_template) {
+    printf("Can not create a new modsys template, memory failure.\n");
+    return FAILURE;
+  }
+
+  new_template->props = props;
+  new_template->props_count = __builtin_popcount((i32)props);
+  new_template->total_prop_size = 0;
   /*
    * if (HAS_FLAG(props, PROP1)) {
-   *   template->total_prop_size += sizeof(prop1);
+   *   new_template->total_prop_size += sizeof(prop1);
    * }
    */
 
-  template->template_data = NULL;
-  ModSysChunkAdd(&template->template_data, template->total_prop_size);
+  new_template->template_data = NULL;
+  if (ModSysChunkAdd(new_template) != SUCCESS) {
+    mem_PoolArenaFree(__template_alloc_arena, new_template);
+    printf("Can not add initial chunk to modsys template of props = %d", props);
+    return FAILURE;
+  }
 
-  template->next = *pHead;
-  *pHead = template;
+  new_template->next = __template_definition_state;
+  __template_definition_state = new_template;
 
   return SUCCESS;
 }
 
-StatusCode modsys_Init() { return SUCCESS; }
+StatusCode modsys_Init() {
+  __chunk_alloc_arena = mem_PoolArenaCreate(sizeof(ModSysChunk));
+  __template_alloc_arena = mem_PoolArenaCreate(sizeof(ModSysTemplate));
+  __handle_alloc_arena = mem_PoolArenaCreate(sizeof(ModSysHandle));
+  if (!__chunk_alloc_arena || !__template_alloc_arena ||
+      !__handle_alloc_arena) {
+    modsys_Exit();
+    return FAILURE;
+  }
+  __pre_lock_buffer = malloc(sizeof(ModSysPreLockBuffer));
+  if (!__pre_lock_buffer) {
+    printf("Can not allocate memory for ECS pre lock buffer.\n");
+    modsys_Exit();
+    return FAILURE;
+  }
+
+  return SUCCESS;
+}
+
+StatusCode modsys_Exit() {
+  if (__chunk_alloc_arena) {
+    mem_PoolArenaDelete(__chunk_alloc_arena);
+    __chunk_alloc_arena = NULL;
+  }
+  if (__template_alloc_arena) {
+    mem_PoolArenaDelete(__template_alloc_arena);
+    __template_alloc_arena = NULL;
+  }
+  if (__handle_alloc_arena) {
+    mem_PoolArenaDelete(__handle_alloc_arena);
+    __handle_alloc_arena = NULL;
+  }
+  if (__pre_lock_buffer) {
+    free(__pre_lock_buffer);
+    __pre_lock_buffer = NULL;
+  }
+
+  __template_definition_state = NULL;
+
+  return SUCCESS;
+}

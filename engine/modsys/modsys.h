@@ -7,7 +7,7 @@ extern "C" {
 #include "../utils/common.h"
 
 /*
- * All the properties included here without the INTERNALS definition.
+ * All the properties included here without the PROPS_INTERNALS definition.
  */
 
 // Modular System, a typedef of ECS for more better name.
@@ -20,6 +20,9 @@ typedef enum {
   NO_PROPS = 0,
   // Must be a bitflag.
 } ModSysProps;
+
+extern StatusCode modsys_Init();
+extern StatusCode modsys_Exit();
 
 #ifdef __cplusplus
 }

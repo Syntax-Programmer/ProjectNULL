@@ -1,7 +1,4 @@
 #include "mem.h"
-#include "common.h"
-#include <cstdio>
-#include <cstdlib>
 
 /* ----  BUMP ARENA  ---- */
 
@@ -75,53 +72,70 @@ StatusCode mem_BumpArenaReset(BumpArena *arena) {
 
 /* ----  POOL ARENA  ---- */
 
-#define STD_POOL_SIZE (16)
+#define STD_POOL_SIZE (24)
+
+typedef struct __MemBlock {
+  void *mem;
+  /*
+   * Using linked memory blocks rather than reallocing, because reallocing the
+   * memory will render the original free list structure invalid with no way to
+   * replicate it to new mem block.
+   */
+  struct __MemBlock *next;
+} MemBlock;
 
 struct __PoolArena {
-  void *mem;
+  MemBlock *mem_blocks;
+  // A singular free list tracks everything, for true O(1) alloc and dealloc.
   void *free_list;
   u64 block_size;
-  struct __PoolArena *next;
 };
 
-static StatusCode AddPoolLink(PoolArena **pHead, u64 block_size);
+static StatusCode AddPoolMem(PoolArena *arena);
 
-static StatusCode AddPoolLink(PoolArena **pHead, u64 block_size) {
-  PoolArena *arena = malloc(sizeof(PoolArena));
-  if (!arena) {
-    printf("Can link new pool arena, memory failure.\n");
+static StatusCode AddPoolMem(PoolArena *arena) {
+  assert(arena);
+
+  MemBlock *block = malloc(sizeof(MemBlock));
+  if (!block) {
+    printf("Can not add more memory to pool arena, memory alloc failure.\n");
     return FAILURE;
   }
 
-  arena->mem = malloc(block_size * STD_POOL_SIZE);
-  if (!(arena->mem)) {
-    free(arena);
-    printf("Can link new pool arena, memory failure.\n");
+  block->mem = malloc(arena->block_size * STD_POOL_SIZE);
+  if (!(block->mem)) {
+    free(block);
+    printf("Can not add more memory to pool arena, memory alloc failure.\n");
     return FAILURE;
   }
 
-  arena->free_list = arena->mem;
-  u8 *curr = (u8 *)arena->mem;
+  u8 *curr = block->mem;
   for (u64 i = 0; i < STD_POOL_SIZE - 1; i++) {
-    *(void **)curr = curr + block_size;
-    curr += block_size;
+    *(void **)curr = curr + arena->block_size;
+    curr += arena->block_size;
   }
-  *(void **)curr = NULL; // Last block points to NULL
+  *(void **)curr = arena->free_list;
+  arena->free_list = block->mem;
 
-  arena->block_size = block_size;
-
-  arena->next = *pHead;
-  *pHead = arena;
+  block->next = arena->mem_blocks;
+  arena->mem_blocks = block;
 
   return SUCCESS;
 }
 
 PoolArena *mem_PoolArenaCreate(u64 block_size) {
-  block_size = (block_size < sizeof(void *)) ? sizeof(void *) : block_size;
+  PoolArena *arena = malloc(sizeof(PoolArena));
+  if (!arena) {
+    printf("Can not create the pool arena with the size: %zu", block_size);
+    return NULL;
+  }
 
-  PoolArena *arena = NULL;
-
-  AddPoolLink(&arena, block_size);
+  arena->block_size =
+      (block_size < sizeof(void *)) ? sizeof(void *) : block_size;
+  if (AddPoolMem(arena) != SUCCESS) {
+    printf("Can not create the pool arena with the size: %zu", block_size);
+    return NULL;
+  };
 
   return arena;
 }
@@ -132,7 +146,7 @@ StatusCode mem_PoolArenaDelete(PoolArena *arena) {
     return FAILURE;
   }
 
-  PoolArena *curr = arena, *next = NULL;
+  MemBlock *curr = arena->mem_blocks, *next = NULL;
 
   while (curr) {
     next = curr->next;
@@ -140,6 +154,8 @@ StatusCode mem_PoolArenaDelete(PoolArena *arena) {
     free(curr);
     curr = next;
   }
+
+  free(arena);
 
   return SUCCESS;
 }
@@ -150,30 +166,22 @@ void *mem_PoolArenaAlloc(PoolArena *arena) {
     return NULL;
   }
 
-  PoolArena *curr = arena, *next = NULL;
+  void *ptr = NULL;
 
-  while (curr) {
-    next = curr->next;
-
-    void *ptr = curr->free_list;
-    if (ptr) {
-      curr->free_list = *(void **)ptr;
-      return ptr;
-    }
-
-    curr = next;
+  if (arena->free_list) {
+    ptr = arena->free_list;
+    arena->free_list = *(void **)arena->free_list;
+    return ptr;
   }
-
-  if (AddPoolLink(&arena, arena->block_size) != SUCCESS) {
+  if (AddPoolMem(arena) != SUCCESS) {
     printf("Can not allocate memory from pool arena, memory exhausted.\n");
     return NULL;
   }
-  /*
-   * In the next recursion it will for sure allocate, and max recursion depth is
-   * 2 always.
-   * Recursing to remove another refactor if the add pool link is changed ever.
-   */
-  return mem_PoolArenaAlloc(arena);
+
+  ptr = arena->free_list;
+  arena->free_list = *(void **)arena->free_list;
+
+  return ptr;
 }
 
 StatusCode mem_PoolArenaFree(PoolArena *arena, void *entry) {
@@ -182,13 +190,25 @@ StatusCode mem_PoolArenaFree(PoolArena *arena, void *entry) {
     return FAILURE;
   }
 
-  u64 offset = (u8 *)entry - (u8 *)arena->mem;
-  if (offset % arena->block_size != 0 ||
-      offset >= arena->block_size * STD_POOL_SIZE) {
-    printf("Invalid data pointer provided to dealloc.\n");
-    return FAILURE;
-  }
-
+  // u64 offset = (u8 *)entry - (u8 *)arena->mem;
+  // if (offset % arena->block_size != 0 ||
+  //     offset >= arena->block_size * STD_POOL_SIZE) {
+  //   printf("Invalid data pointer provided to dealloc.\n");
+  //   return FAILURE;
+  // }
+#ifdef DEBUG
+  fprintf(
+      stderr,
+      "mem_PoolArenaFree, is a unsafe function that currently doesn't check "
+      "if the 'to-free' pointer is a part of the pool. Use it in absolutely "
+      "trusted envirnoments.\n");
+#endif
+  /*
+   * Currently there is no safegaurd in freeing. The developer believes that
+   * this function will be used through abstractions above it, and not
+   * revealed to the end user, its a compromise that can be changed if the
+   * situation ever changes.
+   */
   *(void **)entry = arena->free_list;
   arena->free_list = entry;
 
@@ -201,15 +221,21 @@ StatusCode mem_PoolArenaReset(PoolArena *arena) {
     return FAILURE;
   }
 
-  memset(arena->mem, 0, arena->block_size * arena->cap);
+  MemBlock *curr = arena->mem_blocks;
 
-  arena->free_list = arena->mem;
-  u8 *curr = (u8 *)arena->mem;
-  for (u64 i = 0; i < arena->cap - 1; i++) {
-    *(void **)curr = curr + arena->block_size;
-    curr += arena->block_size;
+  while (curr) {
+    memset(curr->mem, 0, arena->block_size * STD_POOL_SIZE);
+
+    u8 *curr2 = curr->mem;
+    for (u64 i = 0; i < STD_POOL_SIZE - 1; i++) {
+      *(void **)curr2 = curr2 + arena->block_size;
+      curr2 += arena->block_size;
+    }
+    *(void **)curr2 = arena->free_list;
+    arena->free_list = curr->mem;
+
+    curr = curr->next;
   }
-  *(void **)curr = NULL; // Last block points to NULL
 
   return SUCCESS;
 }
