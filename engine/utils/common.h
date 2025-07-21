@@ -34,6 +34,7 @@ typedef double f64;
     b = t;                                                                     \
   } while (0)
 #define MEM_OFFSET(mem, offset) ((u8 *)(mem) + (offset))
+#define IS_POWER_OF_TWO(n) (((n) != 0) && (((n) & ((n) - 1)) == 0))
 
 #define SET_FLAG(var, flag) ((var) |= (flag))
 #define CLEAR_FLAG(var, flag) ((var) &= ~(flag))

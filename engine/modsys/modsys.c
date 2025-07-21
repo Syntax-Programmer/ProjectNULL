@@ -1,189 +1,251 @@
 #include "modsys.h"
+#include "../types/hm.h"
 #include "../utils/mem.h"
 
-#define INTERNALS
+#define PROPS_INTERNALS
 /*
  * All the properties included here.
  */
-#undef INTERNALS
+#undef PROPS_INTERNALS
 
-#define PROP_ARR_CAP (16)
+#define PROP_ARR_CAP (24)
+
+// /*
+//  * This points to the exact memory where that particular enmtity is stored.
+//  *
+//  * After deleting an entity it is curropted to prevent use after free.
+//  *
+//  * The delete function should take a ModSyshandle **, and then *handle = NULL
+//  to
+//  * completely nullify the address making it safe.
+//  */
+// struct __ModSysHandle {
+//   ModSysTemplate *template_ptr;
+//   ModSysChunk *data_chunk_ptr;
+//   u64 template_chunk_index;
+// };
+
+// typedef struct {
+//   /*
+//    * Prop1 prop1;
+//    * Prop2 prop2;
+//    * ...
+//    */
+//   ModSysProps props;
+//   bool in_use;
+// } ModSysPreLockBuffer;
+
+// /*
+//  * Entity defs are written here before copying it into the actual ecs.
+//  * This reduces the number of definition reallocation, search time and
+//  overall
+//  * memory handling. After definition we just push the buffer into the ecs in
+//  one
+//  * copy operation.
+//  */
+// ModSysPreLockBuffer *__pre_lock_buffer = NULL;
+
+// StatusCode modsys_CreateEntity() {
+//   if (!__pre_lock_buffer) {
+//     printf("__pre_lock_buffer not properly initialized that didin't trigger "
+//            "crash in initialization steps.\n");
+//     return FAILURE;
+//   }
+//   if (__pre_lock_buffer->in_use) {
+//     printf("An entity definition is active, but not completed. Complete that
+//     "
+//            "before creating new entity.\n");
+//     return FAILURE;
+//   }
+
+//   __pre_lock_buffer->in_use = true;
+
+//   return SUCCESS;
+// }
+
+// StatusCode modsys_AddProp(ModSysProps prop, void *data) {
+//   if (!__pre_lock_buffer->in_use) {
+//     printf("Create an entity before trying to add props to it.\n");
+//     return FAILURE;
+//   }
+//   if (!IS_POWER_OF_TWO(prop)) {
+//     printf("Please try to add one prop at a time with its respective
+//     data.\n"); return FAILURE;
+//   }
+
+//   return SUCCESS;
+// }
+
+typedef struct {
+  u64 size;
+  bool is_serializable;
+} PropsMetadata;
+
+const PropsMetadata builtin_props_metadata[MODSYS_PROPS_COUNT] = {};
 
 typedef struct __ModSysChunk {
-  void *props_data;
-  u64 occupied_count;
+  void *data;
+  u64 len;
   struct __ModSysChunk *next;
 } ModSysChunk;
 
 struct __ModSysTemplate {
-  ModSysChunk *template_data;
+  ModSysChunk *chunk;
+  // Size of one of each prop's struct for quick chunk creation.
+  u64 props_struct_size;
   ModSysProps props;
-  u64 props_count;
-  // Sum of sizes of each individual props we have defined.
-  u64 total_prop_size;
-  struct __ModSysTemplate *next;
 };
 
 /*
- * This points to the exact memory where that particular enmtity is stored.
- *
- * After deleting an entity it is curropted to prevent use after free.
- *
- * The delete function should take a ModSyshandle **, and then *handle = NULL to
- * completely nullify the address making it safe.
+ * This represents the entire ECS, where the key is ModSysProps, and the values
+ * are ModSysTemplate.
+ * A hashmap for O(1) access and manipulation made for performant entity
+ * creation.
  */
+Hm_IntKey *ecs = NULL;
+
 struct __ModSysHandle {
-  ModSysTemplate *template_ptr;
-  ModSysChunk *data_chunk_ptr;
-  u64 template_chunk_index;
+  ModSysChunk *chunk;
+  /*
+   * Not storing the props, but the template itself. This is to boost
+   * performance since we don't have to re fetch from hashmap each time.
+   */
+  ModSysTemplate *template;
+  u64 entry_index;
 };
 
 typedef struct {
   /*
    * Prop1 prop1;
-   * Prop2 prop2;
    * ...
    */
   ModSysProps props;
-} ModSysPreLockBuffer;
+  bool in_use;
+} EntityDefineBuffer;
+
 /*
- * Entity defs are written here before copying it into the actual ecs.
- * This reduces the number of defintion reallocation, search time and overall
- * memory handling. After definiton we just push the buffer into the ecs in one
- * copy operation.
+ * Entity defs are written here before copying it into the actual ecs. This
+ * reduces the number of definitions reallocation and search time.
+ * This also significantly simplifies the amount of memory handling.
  */
-ModSysPreLockBuffer *__pre_lock_buffer = NULL;
-/*
- * This allows for us to only malloc at runtime, the actual memory chunk whose
- * size is unknown. Otherwise, the chunk struct itself is constant memory size
- * so using pool arena is suitable.
- */
-PoolArena *__chunk_alloc_arena = NULL;
-/*
- * In this pool, the ecs lives. Since ecs is just ModSysTemplate *, allocating
- * ModSysTemplate inside a pool is a performance optimization.
- */
-PoolArena *__template_alloc_arena = NULL;
-/*
- * Since we don't know how many handles will be created, but we know each handle
- * is 24 bytes each, allocating it inside a pool allows for us to not deal with
- * constant malloc.
- */
-PoolArena *__handle_alloc_arena = NULL;
-/*
- * This represents our ecs system. Each new entity definition will be stored
- * here.
- *
- * Also the templates users make, will be stored here and a pointer to the
- * template will be given to the user, to let them keep it as they want.
- *
- * Each template will be identified by the props it holds and each template
- * holds unique set of props.
- *
- * This ECS is allocated inside the __template_alloc_arena.
- */
-ModSysTemplate *__template_definition_state = NULL;
+EntityDefineBuffer *entity_buffer = NULL;
 
 static StatusCode ModSysChunkAdd(ModSysTemplate *template);
-static StatusCode ModSysTemplateAdd(ModSysProps props);
+static StatusCode ModSysChunkDelete(ModSysTemplate *template);
+
+static StatusCode AddECSTemplate(ModSysProps props);
+static StatusCode DeleteEcsTemplateCallback(void *template);
+static StatusCode DeleteEcsTemplate(ModSysTemplate *template);
 
 static StatusCode ModSysChunkAdd(ModSysTemplate *template) {
-  assert(template && __chunk_alloc_arena);
-
-  ModSysChunk *new_chunk = mem_PoolArenaAlloc(__chunk_alloc_arena);
-  if (!new_chunk) {
-    printf("Can not create a new modsys chunk, memory failure.\n");
-    return FAILURE;
-  }
-
-  new_chunk->occupied_count = 0;
-  new_chunk->props_data = malloc(template->total_prop_size * PROP_ARR_CAP);
-  if (!new_chunk->props_data) {
-    mem_PoolArenaFree(__chunk_alloc_arena, new_chunk);
-    printf("Can not create a new modsys chunk, memory failure.\n");
-    return FAILURE;
-  }
-
-  new_chunk->next = template->template_data;
-  template->template_data = new_chunk;
-
-  return SUCCESS;
-}
-
-static StatusCode ModSysTemplateAdd(ModSysProps props) {
-  assert(__template_alloc_arena && __template_definition_state);
-
-  if (props == NO_PROPS) {
-    printf("Can not allocate a template for props = NO_PROPS.\n");
-    return FAILURE;
-  }
-
-  ModSysTemplate *new_template = mem_PoolArenaAlloc(__template_alloc_arena);
-  if (!new_template) {
-    printf("Can not create a new modsys template, memory failure.\n");
-    return FAILURE;
-  }
-
-  new_template->props = props;
-  new_template->props_count = __builtin_popcount((i32)props);
-  new_template->total_prop_size = 0;
+  assert(ecs && template);
   /*
-   * if (HAS_FLAG(props, PROP1)) {
-   *   new_template->total_prop_size += sizeof(prop1);
-   * }
+   * This method of malloc prevents heap fragmentation, and also allows us to
+   * only free ModSysChunk, and the chunk->data memory will be freed itself.
+   *
+   * Its a variation of struct hack.
    */
-
-  new_template->template_data = NULL;
-  if (ModSysChunkAdd(new_template) != SUCCESS) {
-    mem_PoolArenaFree(__template_alloc_arena, new_template);
-    printf("Can not add initial chunk to modsys template of props = %d", props);
+  void *ptr =
+      malloc(sizeof(ModSysChunk) + template->props_struct_size * PROP_ARR_CAP);
+  if (!ptr) {
+    printf("Can not create a new modsys chunk, memory failure.\n");
     return FAILURE;
   }
 
-  new_template->next = __template_definition_state;
-  __template_definition_state = new_template;
+  ModSysChunk *chunk = ptr;
+  chunk->data = MEM_OFFSET(ptr, sizeof(ModSysChunk));
+  chunk->len = 0;
+
+  chunk->next = template->chunk;
+  template->chunk = chunk;
 
   return SUCCESS;
 }
 
-StatusCode modsys_Init() {
-  __chunk_alloc_arena = mem_PoolArenaCreate(sizeof(ModSysChunk));
-  __template_alloc_arena = mem_PoolArenaCreate(sizeof(ModSysTemplate));
-  __handle_alloc_arena = mem_PoolArenaCreate(sizeof(ModSysHandle));
-  if (!__chunk_alloc_arena || !__template_alloc_arena ||
-      !__handle_alloc_arena) {
-    modsys_Exit();
-    return FAILURE;
-  }
-  __pre_lock_buffer = malloc(sizeof(ModSysPreLockBuffer));
-  if (!__pre_lock_buffer) {
-    printf("Can not allocate memory for ECS pre lock buffer.\n");
-    modsys_Exit();
-    return FAILURE;
+static StatusCode ModSysChunkDelete(ModSysTemplate *template) {
+  assert(ecs && template);
+
+  ModSysChunk *curr = template->chunk, *next = NULL;
+  while (curr) {
+    next = curr->next;
+
+    // Only need to free curr since the struct was created using struct hack.
+    free(curr);
+
+    curr = next;
   }
 
   return SUCCESS;
 }
 
-StatusCode modsys_Exit() {
-  if (__chunk_alloc_arena) {
-    mem_PoolArenaDelete(__chunk_alloc_arena);
-    __chunk_alloc_arena = NULL;
-  }
-  if (__template_alloc_arena) {
-    mem_PoolArenaDelete(__template_alloc_arena);
-    __template_alloc_arena = NULL;
-  }
-  if (__handle_alloc_arena) {
-    mem_PoolArenaDelete(__handle_alloc_arena);
-    __handle_alloc_arena = NULL;
-  }
-  if (__pre_lock_buffer) {
-    free(__pre_lock_buffer);
-    __pre_lock_buffer = NULL;
+static StatusCode AddECSTemplate(ModSysProps props) {
+  assert(ecs);
+
+  if (props == 0) {
+    printf("Can not add a template with no/invalid props.\n");
+    return FAILURE;
   }
 
-  __template_definition_state = NULL;
+  if (hm_IntKeyFetchEntry(ecs, props)) {
+    // The template already exists.
+    return SUCCESS;
+  }
+
+  ModSysTemplate *template = malloc(sizeof(ModSysTemplate));
+  if (!template) {
+    printf("Can not create memory for new template with props: %ld.\n", props);
+    return FAILURE;
+  }
+  template->props = props;
+  template->props_struct_size = 0;
+  /*
+   * TODO: Make the size when we have some props defined.
+   */
+  if (ModSysChunkAdd(template) != SUCCESS) {
+    free(template);
+    printf("Can not create initial memory chunk for the template with props: "
+           "%ld.\n",
+           props);
+    return FAILURE;
+  }
+
+  hm_IntKeyAddEntry(ecs, props, template, false);
+
+  return SUCCESS;
+}
+
+static StatusCode DeleteEcsTemplateCallback(void *template) {
+  assert(ecs && template);
+
+  ModSysTemplate *tmp = template;
+
+  ModSysChunkDelete(tmp);
+  free(tmp);
+
+  return SUCCESS;
+}
+
+static StatusCode DeleteEcsTemplate(ModSysTemplate *template) {
+  assert(ecs);
+
+  return hm_IntKeyDeleteEntry(ecs, template->props, DeleteEcsTemplateCallback);
+}
+
+StatusCode modsys_Init(void) {
+  ecs = hm_IntKeyCreate();
+  if (!ecs) {
+    printf("Can not initialize ECS for the engine.\n");
+    return NULL;
+  }
+
+  return SUCCESS;
+}
+
+StatusCode modsys_Exit(void) {
+  if (ecs) {
+    hm_IntKeyDelete(ecs, DeleteEcsTemplateCallback);
+    ecs = NULL;
+  }
 
   return SUCCESS;
 }

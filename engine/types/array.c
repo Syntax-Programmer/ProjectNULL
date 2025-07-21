@@ -79,7 +79,7 @@ StatusCode arr_VectorSet(Vector *arr, u64 i, const void *data) {
 }
 
 StatusCode arr_VectorPush(Vector *arr, const void *data,
-                          const u64 (*grow_callback)(u64 old_cap)) {
+                          u64 (*grow_callback)(u64 old_cap)) {
   if (!arr || !data) {
     printf("Invalid arguments for arr_VectorPush function.\n");
     return FAILURE;
@@ -106,7 +106,7 @@ StatusCode arr_VectorPush(Vector *arr, const void *data,
 }
 
 StatusCode arr_VectorPop(Vector *arr, void *dest) {
-  if (!arr || !dest) {
+  if (!arr) {
     printf("Invalid arguments for arr_VectorPush function.\n");
     return FAILURE;
   }
@@ -115,8 +115,13 @@ StatusCode arr_VectorPop(Vector *arr, void *dest) {
     return FAILURE;
   }
 
-  memcpy(dest, MEM_OFFSET(arr->mem, --(arr->len) * arr->elem_size),
-         arr->elem_size);
+  // Allows for users who don't want the data.
+  if (dest) {
+    memcpy(dest, MEM_OFFSET(arr->mem, --(arr->len) * arr->elem_size),
+           arr->elem_size);
+  } else {
+    --(arr->len);
+  }
 
   return SUCCESS;
 }
@@ -170,7 +175,7 @@ void *arr_VectorRaw(const Vector *arr) {
 }
 
 StatusCode arr_VectorForEach(Vector *arr,
-                             const void (*foreach_callback)(void *val)) {
+                             StatusCode (*foreach_callback)(void *val)) {
   if (!arr || !foreach_callback) {
     printf("Invalid arguments for arr_VectorForEach function.\n");
     return FAILURE;
@@ -262,8 +267,7 @@ u64 arr_BuffArrCap(const BuffArr *arr) {
   return arr->cap;
 }
 
-StatusCode arr_BuffArrGrow(BuffArr *arr,
-                           const u64 (*grow_callback)(u64 old_cap)) {
+StatusCode arr_BuffArrGrow(BuffArr *arr, u64 (*grow_callback)(u64 old_cap)) {
   if (!arr) {
     printf("Can not grow an invalid buffer array.\n");
     return FAILURE;
@@ -307,7 +311,7 @@ void *arr_BuffArrRaw(const BuffArr *arr) {
 }
 
 StatusCode arr_BuffArrForEach(BuffArr *arr,
-                              const void (*foreach_callback)(void *val)) {
+                              StatusCode (*foreach_callback)(void *val)) {
   if (!arr || !foreach_callback) {
     printf("Invalid arguments for arr_BuffArrForEach function.\n");
     return FAILURE;

@@ -16,13 +16,12 @@ typedef struct __ModSysTemplate ModSysTemplate;
 
 typedef struct __ModSysHandle ModSysHandle;
 
-typedef enum {
-  NO_PROPS = 0,
-  // Must be a bitflag.
-} ModSysProps;
+// This will currently only support 64 components, change it to struct for more.
+typedef i64 ModSysProps;
+#define MODSYS_PROPS_COUNT (0)
 
-extern StatusCode modsys_Init();
-extern StatusCode modsys_Exit();
+extern StatusCode modsys_Init(void);
+extern StatusCode modsys_Exit(void);
 
 #ifdef __cplusplus
 }

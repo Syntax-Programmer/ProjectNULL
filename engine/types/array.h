@@ -16,14 +16,14 @@ extern StatusCode arr_VectorDelete(Vector *arr);
 extern StatusCode arr_VectorGet(const Vector *arr, u64 i, void *dest);
 extern StatusCode arr_VectorSet(Vector *arr, u64 i, const void *data);
 extern StatusCode arr_VectorPush(Vector *arr, const void *data,
-                                const u64 (*grow_callback)(u64 old_cap));
+                                 u64 (*grow_callback)(u64 old_cap));
 extern StatusCode arr_VectorPop(Vector *arr, void *dest);
 extern u64 arr_VectorLen(const Vector *arr);
 extern StatusCode arr_VectorFit(Vector *arr);
 extern StatusCode arr_VectorReset(Vector *arr);
 extern void *arr_VectorRaw(const Vector *arr);
 extern StatusCode arr_VectorForEach(Vector *arr,
-                                   const void (*foreach_callback)(void *val));
+                                    StatusCode (*foreach_callback)(void *val));
 
 /* ----  BUFFER ARRAY  ---- */
 
@@ -35,11 +35,11 @@ extern StatusCode arr_BuffArrGet(const BuffArr *arr, u64 i, void *dest);
 extern StatusCode arr_BuffArrSet(BuffArr *arr, u64 i, const void *data);
 extern u64 arr_BuffArrCap(const BuffArr *arr);
 extern StatusCode arr_BuffArrGrow(BuffArr *arr,
-                                 const u64 (*grow_callback)(u64 old_cap));
+                                  u64 (*grow_callback)(u64 old_cap));
 extern StatusCode arr_BuffArrReset(BuffArr *arr);
 extern void *arr_BuffArrRaw(const BuffArr *arr);
 extern StatusCode arr_BuffArrForEach(BuffArr *arr,
-                                    const void (*foreach_callback)(void *val));
+                                     StatusCode (*foreach_callback)(void *val));
 
 #ifdef __cplusplus
 }
