@@ -12,7 +12,7 @@ extern "C" {
 
 // Modular System, a typedef of ECS for more better name.
 
-typedef struct __ModSysTemplate ModSysTemplate;
+typedef struct __ModSysTmpl ModSysTmpl;
 
 typedef struct __ModSysHandle ModSysHandle;
 
