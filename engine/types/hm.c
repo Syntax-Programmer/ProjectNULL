@@ -126,7 +126,10 @@ static u64 GrowHmEntriesCallback(u64 old_cap) {
 }
 
 static StatusCode GrowHmIntKeyStructure(Hm_IntKey *hm) {
-  assert(hm);
+    if (!hm) {
+    printf("NULL argument 'hm' passed to %s\n", __func__);
+    return FAILURE;
+  }
 
   if (arr_BuffArrGrow(hm->structure, GrowHmStructureCallback) != SUCCESS) {
     printf("Can not grow hashmap.\n");
@@ -231,7 +234,12 @@ void *hm_IntKeyFetchEntry(const Hm_IntKey *hm, i64 key) {
 static StatusCode FetchHmIntKeyStructureEntryIndices(Hm_IntKey *hm, i64 key,
                                                      u64 *pStructure_i,
                                                      u64 *pEntry_i) {
-  assert(hm && pStructure_i && pEntry_i);
+  if (!hm || !pStructure_i || !pEntry_i) {
+    printf(
+        "Invalid NULL argument in %s. hm: %p, pStructure_i: %p, pEntry_i: %p\n",
+        __func__, hm, pStructure_i, pEntry_i);
+    return FAILURE;
+  }
 
   *pStructure_i = *pEntry_i = EMPTY_INDEX;
 

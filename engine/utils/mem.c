@@ -94,7 +94,10 @@ struct __PoolArena {
 static StatusCode AddPoolMem(PoolArena *arena);
 
 static StatusCode AddPoolMem(PoolArena *arena) {
-  assert(arena);
+  if (!arena) {
+  printf("Unreachable condition hit in function %s. Argument 'arena' is NULL.\n", __func__);
+  return FAILURE;
+  }
 
   MemBlock *block = malloc(sizeof(MemBlock));
   if (!block) {
