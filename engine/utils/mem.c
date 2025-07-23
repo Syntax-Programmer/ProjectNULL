@@ -159,29 +159,25 @@ StatusCode mem_PoolArenaFree(PoolArena *arena, void *entry) {
   CHECK_NULL_ARG(arena, FAILURE);
   CHECK_NULL_ARG(entry, FAILURE);
 
-  // u64 offset = (u8 *)entry - (u8 *)arena->mem;
-  // if (offset % arena->block_size != 0 ||
-  //     offset >= arena->block_size * STD_POOL_SIZE) {
-  //   printf("Invalid data pointer provided to dealloc.\n");
-  //   return FAILURE;
-  // }
-#ifdef DEBUG
-  fprintf(
-      stderr,
-      "mem_PoolArenaFree, is a unsafe function that currently doesn't check "
-      "if the 'to-free' pointer is a part of the pool. Use it in absolutely "
-      "trusted envirnoments.\n");
-#endif
-  /*
-   * Currently there is no safegaurd in freeing. The developer believes that
-   * this function will be used through abstractions above it, and not
-   * revealed to the end user, its a compromise that can be changed if the
-   * situation ever changes.
-   */
-  *(void **)entry = arena->free_list;
-  arena->free_list = entry;
+  MemBlock *curr = arena->mem_blocks;
+  while (curr) {
+    u64 offset = (u8 *)entry - (u8 *)curr->mem;
+    if (offset % arena->block_size == 0 &&
+        offset < arena->block_size * STD_POOL_SIZE) {
+      // Valid ptr of the pool arena.
+      *(void **)entry = arena->free_list;
+      arena->free_list = entry;
+      return SUCCESS;
+    }
 
-  return SUCCESS;
+    curr = curr->next;
+  }
+
+  printf("'entry' ptr is not a valid pointer inside the provided pool arena "
+         "in: %s.\n",
+         __func__);
+
+  return FAILURE;
 }
 
 StatusCode mem_PoolArenaReset(PoolArena *arena) {

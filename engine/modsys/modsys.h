@@ -17,8 +17,8 @@ typedef struct __ModSysTmpl ModSysTmpl;
 typedef struct __ModSysHandle ModSysHandle;
 
 // This will currently only support 64 components, change it to struct for more.
-typedef i64 ModSysProps;
-#define MODSYS_PROPS_COUNT (0)
+typedef u64 ModSysProps;
+#define MODSYS_PROPS_COUNT (64)
 
 extern StatusCode modsys_Init(void);
 extern StatusCode modsys_Exit(void);

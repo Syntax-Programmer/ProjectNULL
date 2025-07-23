@@ -2,6 +2,11 @@
 #include "../types/hm.h"
 #include "../utils/mem.h"
 
+#if defined(_MSC_VER)
+#include <intrin.h>
+#pragma intrinsic(_BitScanForward)
+#endif
+
 #define PROP_ARR_CAP (24)
 
 /* ----  INTERNAL STRUCTS  ---- */
@@ -99,6 +104,7 @@ static ECSState *ecs_state = NULL;
 
 /* ----  UTILITY FUNCTIONS   ---- */
 
+static u64 PropTableIndex(u64 x);
 static StatusCode PopulateBuiltinPropsMetadata(void);
 
 /* ----  CHUNK RELATED FUNCTIONS  ---- */
@@ -107,6 +113,7 @@ static StatusCode ModSysChunkAdd(ModSysTmpl *tmpl);
 static StatusCode ModSysChunkDelete(ModSysTmpl *tmpl);
 static StatusCode ModSysChunkFindFreeSpot(ModSysTmpl *tmpl,
                                           ModSysHandle *handle);
+static StatusCode ModSysChunkReclaimFreeSpot(ModSysHandle *handle);
 
 /* ----  TEMPLATE RELATED FUNCTIONS  ---- */
 
@@ -117,8 +124,32 @@ static StatusCode ModSysTmplDelete(ModSysTmpl *tmpl);
 /* ----  HANDLE RELATED FUNCTIONS  ---- */
 
 static ModSysHandle *ModSysHandleCreate(ModSysTmpl *tmpl);
+static StatusCode ModSysHandleDelete(ModSysHandle *handle);
 
 /* ----  UTILITY FUNCTIONS   ---- */
+
+static u64 PropTableIndex(ModSysProps prop) {
+  if (prop == 0)
+    return -1; // Undefined for zero
+
+#if defined(__GNUC__) || defined(__clang__)
+  return __builtin_ctzll(prop);
+
+#elif defined(_MSC_VER)
+  unsigned long index;
+  _BitScanForward64(&index, prop);
+  return (u64)index;
+
+#else
+  // Portable fallback
+  u64 n = 0;
+  while ((prop & 1) == 0) {
+    prop >>= 1;
+    n++;
+  }
+  return n;
+#endif
+}
 
 static StatusCode PopulateBuiltinPropsMetadata(void) {
   CHECK_NULL_VAR(ecs_state, FAILURE);
@@ -195,6 +226,45 @@ static StatusCode ModSysChunkFindFreeSpot(ModSysTmpl *tmpl,
   return SUCCESS;
 }
 
+static StatusCode ModSysChunkReclaimFreeSpot(ModSysHandle *handle) {
+  CHECK_NULL_VAR(ecs_state, FAILURE);
+  CHECK_NULL_ARG(handle, FAILURE);
+
+  /*
+   * Guarantee: If a handle is created through valid means and not some idiot
+   * way, it will defininetly have at least len == 1.
+   */
+
+  u64 last_index = --(handle->chunk->len);
+  ModSysProps props = handle->tmpl->props;
+  // Tracks the offset of the current arr we are packing.
+  u64 arr_offset = 0;
+  while (props) {
+    ModSysProps prop = props & -props;
+
+    /*
+     * Now it is important that lowest bit props always come before in the chunk
+     * memory for this to work.
+     */
+    u64 index = PropTableIndex(prop);
+    u64 prop_size = ecs_state->builtin_props_metadata->size[index];
+    void *chunk_mem = handle->chunk->data;
+
+    void *arr_last = chunk_mem + arr_offset + prop_size * last_index;
+    void *arr_to_free =
+        chunk_mem + arr_offset + prop_size * handle->entry_index;
+
+    // Repacking each individual array.
+    memmove(arr_to_free, arr_last, prop_size);
+
+    arr_offset += prop_size;
+
+    props ^= prop;
+  }
+
+  return SUCCESS;
+}
+
 /* ----  TEMPLATE RELATED FUNCTIONS  ---- */
 
 static StatusCode ModSysTmplAdd(ModSysProps props) {
@@ -264,6 +334,16 @@ static ModSysHandle *ModSysHandleCreate(ModSysTmpl *tmpl) {
   return handle;
 }
 
+static StatusCode ModSysHandleDelete(ModSysHandle *handle) {
+  CHECK_NULL_VAR(ecs_state, FAILURE);
+  CHECK_NULL_ARG(handle, FAILURE);
+
+  ModSysChunkReclaimFreeSpot(handle);
+  mem_PoolArenaFree(ecs_state->handle_alloc_arena, handle);
+
+  return SUCCESS;
+}
+
 StatusCode modsys_Init(void) {
   // Calloc to give proper cleanup if failed to initialize.
   ecs_state = calloc(1, sizeof(ECSState));
@@ -326,3 +406,9 @@ StatusCode modsys_Exit(void) {
 
   return SUCCESS;
 }
+
+/*
+ * TODO:
+ * Now it is important that lowest bit props always come before in the chunk
+ * memory for the ModSysChunkReclaimFreeSpot to work.
+ */
