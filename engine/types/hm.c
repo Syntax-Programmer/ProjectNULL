@@ -65,24 +65,14 @@ static inline u64 SplitMix64Hasher(i64 x) {
 
 Hm_IntKey *hm_IntKeyCreate(void) {
   Hm_IntKey *hm = malloc(sizeof(Hm_IntKey));
-  if (!hm) {
-    printf("Can not create Hm_IntKey, memory failure.\n");
-    return NULL;
-  }
+  CHECK_ALLOC_FAILURE(hm, NULL);
 
   hm->structure = arr_BuffArrCreate(MIN_HASH_BUCKET_SIZE, sizeof(u64));
-  if (!hm->structure) {
-    printf("Can not create Hm_IntKey, memory failure.\n");
-    free(hm);
-    return NULL;
-  }
+  CHECK_ALLOC_FAILURE(hm->structure, NULL, free(hm));
+
   hm->entries = arr_VectorCreate(sizeof(Hm_IntKeyEntries));
-  if (!hm->entries) {
-    printf("Can not create Hm_IntKey, memory failure.\n");
-    free(hm->structure);
-    free(hm);
-    return NULL;
-  }
+  CHECK_ALLOC_FAILURE(hm->structure, NULL, arr_BuffArrDelete(hm->structure);
+                      free(hm));
 
   Hm_IntKeyEntries *structure = arr_BuffArrRaw(hm->structure);
   // This will set each index to EMPTY, as memset works per byte.
@@ -93,10 +83,7 @@ Hm_IntKey *hm_IntKeyCreate(void) {
 
 StatusCode hm_IntKeyDelete(Hm_IntKey *hm,
                            StatusCode (*val_delete_callback)(void *val)) {
-  if (!hm) {
-    printf("Can not delete an invalid Hm_IntKey.\n");
-    return FAILURE;
-  }
+  CHECK_NULL_ARG(hm, FAILURE);
 
   if (hm->structure) {
     arr_BuffArrDelete(hm->structure);
@@ -126,15 +113,11 @@ static u64 GrowHmEntriesCallback(u64 old_cap) {
 }
 
 static StatusCode GrowHmIntKeyStructure(Hm_IntKey *hm) {
-    if (!hm) {
-    printf("NULL argument 'hm' passed to %s\n", __func__);
-    return FAILURE;
-  }
+  CHECK_NULL_ARG(hm, FAILURE);
 
-  if (arr_BuffArrGrow(hm->structure, GrowHmStructureCallback) != SUCCESS) {
-    printf("Can not grow hashmap.\n");
-    return FAILURE;
-  }
+  CHECK_FUNCTION_FAILURE(
+      arr_BuffArrGrow(hm->structure, GrowHmStructureCallback), FAILURE,
+      printf("Can not grow hashmap.\n"));
 
   u64 mask = arr_BuffArrCap(hm->structure) - 1;
   Hm_IntKeyEntries *entries = arr_VectorRaw(hm->entries);
@@ -156,10 +139,7 @@ static StatusCode GrowHmIntKeyStructure(Hm_IntKey *hm) {
 
 StatusCode hm_IntKeyAddEntry(Hm_IntKey *hm, i64 key, void *val,
                              bool overwrite) {
-  if (!hm) {
-    printf("Can not add to an invalid Hm_IntKey.\n");
-    return FAILURE;
-  }
+  CHECK_NULL_ARG(hm, FAILURE);
 
   u64 hm_len = hm_IntKeyGetLen(hm);
   u64 structure_cap = arr_BuffArrCap(hm->structure);
@@ -195,11 +175,9 @@ StatusCode hm_IntKeyAddEntry(Hm_IntKey *hm, i64 key, void *val,
   }
 
   Hm_IntKeyEntries new_entry = {.hash = hash, .val = val, .key = key};
-  if (arr_VectorPush(hm->entries, &new_entry, GrowHmEntriesCallback) !=
-      SUCCESS) {
-    printf("Can not push any more entries to the hashmap.\n");
-    return FAILURE;
-  }
+  CHECK_FUNCTION_FAILURE(
+      arr_VectorPush(hm->entries, &new_entry, GrowHmEntriesCallback), FAILURE,
+      printf("Can not push any more entries to the hashmap.\n"));
 
   arr_BuffArrSet(hm->structure, i, &hm_len);
 
@@ -207,10 +185,7 @@ StatusCode hm_IntKeyAddEntry(Hm_IntKey *hm, i64 key, void *val,
 }
 
 void *hm_IntKeyFetchEntry(const Hm_IntKey *hm, i64 key) {
-  if (!hm) {
-    printf("Can not fetch from an invalid Hm_IntKey.\n");
-    return NULL;
-  }
+  CHECK_NULL_ARG(hm, NULL);
 
   u64 mask = arr_BuffArrCap(hm->structure) - 1;
   u64 hash = SplitMix64Hasher(key);
@@ -234,12 +209,9 @@ void *hm_IntKeyFetchEntry(const Hm_IntKey *hm, i64 key) {
 static StatusCode FetchHmIntKeyStructureEntryIndices(Hm_IntKey *hm, i64 key,
                                                      u64 *pStructure_i,
                                                      u64 *pEntry_i) {
-  if (!hm || !pStructure_i || !pEntry_i) {
-    printf(
-        "Invalid NULL argument in %s. hm: %p, pStructure_i: %p, pEntry_i: %p\n",
-        __func__, hm, pStructure_i, pEntry_i);
-    return FAILURE;
-  }
+  CHECK_NULL_ARG(hm, FAILURE);
+  CHECK_NULL_ARG(pStructure_i, FAILURE);
+  CHECK_NULL_ARG(pEntry_i, FAILURE);
 
   *pStructure_i = *pEntry_i = EMPTY_INDEX;
 
@@ -266,10 +238,7 @@ static StatusCode FetchHmIntKeyStructureEntryIndices(Hm_IntKey *hm, i64 key,
 
 StatusCode hm_IntKeyDeleteEntry(Hm_IntKey *hm, i64 key,
                                 StatusCode (*val_delete_callback)(void *val)) {
-  if (!hm) {
-    printf("Can not delete from an invalid Hm_IntKey.\n");
-    return FAILURE;
-  }
+  CHECK_NULL_ARG(hm, FAILURE);
 
   u64 hm_len = hm_IntKeyGetLen(hm);
   Hm_IntKeyEntries *entries = arr_VectorRaw(hm->entries);
@@ -303,15 +272,17 @@ StatusCode hm_IntKeyDeleteEntry(Hm_IntKey *hm, i64 key,
   return SUCCESS;
 }
 
-u64 hm_IntKeyGetLen(const Hm_IntKey *hm) { return arr_VectorLen(hm->entries); }
+u64 hm_IntKeyGetLen(const Hm_IntKey *hm) {
+  CHECK_NULL_ARG(hm, FAILURE);
+
+  return arr_VectorLen(hm->entries);
+}
 
 StatusCode hm_IntKeyForEach(Hm_IntKey *hm,
                             void (*foreach_callback)(const i64 key,
                                                      void *val)) {
-  if (!hm || !foreach_callback) {
-    printf("Invalid arguments for hm_IntKeyForEach function.\n");
-    return FAILURE;
-  }
+  CHECK_NULL_ARG(hm, FAILURE);
+  CHECK_NULL_ARG(foreach_callback, FAILURE);
 
   Hm_IntKeyEntries *entries = arr_VectorRaw(hm->entries);
   u64 len = hm_IntKeyGetLen(hm);
