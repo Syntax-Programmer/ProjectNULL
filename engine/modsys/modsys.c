@@ -186,7 +186,7 @@ static StatusCode ModSysChunkFindFreeSpot(ModSysTmpl *tmpl,
     curr = curr->next;
   }
 
-  CHECK_FUNCTION_FAILURE(ModSysChunkAdd(tmpl), FAILURE;
+  CHECK_FUNCTION_FAILURE(ModSysChunkAdd(tmpl), FAILURE,
                          printf("Unable to find valid free spot in tmpl"));
 
   handle->chunk = tmpl->chunk;
