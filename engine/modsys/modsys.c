@@ -104,7 +104,7 @@ static ECSState *ecs_state = NULL;
 
 /* ----  UTILITY FUNCTIONS   ---- */
 
-static u64 PropTableIndex(u64 x);
+static u64 PropTableIndex(ModSysProps prop);
 static StatusCode PopulateBuiltinPropsMetadata(void);
 
 /* ----  CHUNK RELATED FUNCTIONS  ---- */
@@ -117,7 +117,7 @@ static StatusCode ModSysChunkReclaimFreeSpot(ModSysHandle *handle);
 
 /* ----  TEMPLATE RELATED FUNCTIONS  ---- */
 
-static StatusCode ModSysTmplAdd(ModSysProps props);
+static ModSysTmpl *ModSysTmplAdd(ModSysProps props);
 static StatusCode ModSysTmplFreeCallback(void *tmpl);
 static StatusCode ModSysTmplDelete(ModSysTmpl *tmpl);
 
@@ -173,7 +173,7 @@ static StatusCode ModSysChunkAdd(ModSysTmpl *tmpl) {
   CHECK_ALLOC_FAILURE(chunk, FAILURE);
 
   chunk->data = malloc(tmpl->props_struct_size * PROP_ARR_CAP);
-  CHECK_ALLOC_FAILURE(chunk, FAILURE,
+  CHECK_ALLOC_FAILURE(chunk->data, FAILURE,
                       mem_PoolArenaFree(ecs_state->chunk_alloc_arena, chunk));
 
   chunk->len = 0;
@@ -235,11 +235,18 @@ static StatusCode ModSysChunkReclaimFreeSpot(ModSysHandle *handle) {
    * way, it will defininetly have at least len == 1.
    */
 
+  if (handle->entry_index == PROP_ARR_CAP - 1) {
+    --(handle->chunk->len);
+    return SUCCESS;
+  }
+
   u64 last_index = --(handle->chunk->len);
   ModSysProps props = handle->tmpl->props;
   // Tracks the offset of the current arr we are packing.
   u64 arr_offset = 0;
+  // This lets us decompose prop bitflags into individual props.
   while (props) {
+    // Extract the lowest most set bit.
     ModSysProps prop = props & -props;
 
     /*
@@ -254,46 +261,60 @@ static StatusCode ModSysChunkReclaimFreeSpot(ModSysHandle *handle) {
     void *arr_to_free =
         chunk_mem + arr_offset + prop_size * handle->entry_index;
 
-    // Repacking each individual array.
-    memmove(arr_to_free, arr_last, prop_size);
+    // Repacking each array. Using memcpy, indices of array don't collide.
+    memcpy(arr_to_free, arr_last, prop_size);
 
     arr_offset += prop_size;
 
+    // Clearing the lowest set bit from the props;
     props ^= prop;
   }
+
+  handle->chunk = NULL;
+  handle->entry_index = -1;
 
   return SUCCESS;
 }
 
 /* ----  TEMPLATE RELATED FUNCTIONS  ---- */
 
-static StatusCode ModSysTmplAdd(ModSysProps props) {
-  CHECK_NULL_VAR(ecs_state, FAILURE);
+static ModSysTmpl *ModSysTmplAdd(ModSysProps props) {
+  CHECK_NULL_VAR(ecs_state, NULL);
 
-  if (props == 0) {
+  if (props == NO_PROP) {
     printf("Can not add a tmpl with no/invalid props.\n");
-    return FAILURE;
+    return NULL;
   }
 
-  if (hm_IntKeyFetchEntry(ecs_state->ecs, props) != NULL) {
+  ModSysTmpl *tmpl = NULL;
+  if ((tmpl = hm_IntKeyFetchEntry(ecs_state->ecs, props)) != NULL) {
     // The tmpl already exists.
-    return SUCCESS;
+    return tmpl;
   }
 
-  ModSysTmpl *tmpl = mem_PoolArenaAlloc(ecs_state->tmpl_alloc_arena);
-  CHECK_ALLOC_FAILURE(tmpl, FAILURE);
+  tmpl = mem_PoolArenaCalloc(ecs_state->tmpl_alloc_arena);
+  CHECK_ALLOC_FAILURE(tmpl, NULL);
 
   tmpl->props = props;
   tmpl->props_struct_size = 0;
-  /*
-   * TODO: Make the size when we have some props defined.
-   */
-  CHECK_FUNCTION_FAILURE(ModSysChunkAdd(tmpl), FAILURE,
+  // This lets us decompose prop bitflags into individual props.
+  while (props) {
+    // Extract the lowest most set bit.
+    ModSysProps prop = props & -props;
+
+    u64 index = PropTableIndex(prop);
+    tmpl->props_struct_size += ecs_state->builtin_props_metadata->size[index];
+
+    // Clearing the lowest set bit from the props;
+    props ^= prop;
+  }
+
+  CHECK_FUNCTION_FAILURE(ModSysChunkAdd(tmpl), NULL,
                          mem_PoolArenaFree(ecs_state->tmpl_alloc_arena, tmpl));
 
   hm_IntKeyAddEntry(ecs_state->ecs, props, tmpl, false);
 
-  return SUCCESS;
+  return tmpl;
 }
 
 static StatusCode ModSysTmplFreeCallback(void *tmpl) {
@@ -315,6 +336,69 @@ static StatusCode ModSysTmplFreeCallback(void *tmpl) {
 static StatusCode ModSysTmplDelete(ModSysTmpl *tmpl) {
   return hm_IntKeyDeleteEntry(ecs_state->ecs, tmpl->props,
                               ModSysTmplFreeCallback);
+}
+
+StatusCode modsys_StartTmplDefinition(void) {
+  CHECK_NULL_VAR(ecs_state, FAILURE);
+
+  if (ecs_state->tmpl_buffer->in_use) {
+    printf("Please finish previously stared template definition.\n");
+    return FAILURE;
+  }
+
+  ecs_state->tmpl_buffer->in_use = true;
+  ecs_state->tmpl_buffer->props = NO_PROP;
+
+  return SUCCESS;
+}
+
+StatusCode modsys_CancelTmplDefinition(void) {
+  CHECK_NULL_VAR(ecs_state, FAILURE);
+
+  if (!ecs_state->tmpl_buffer->in_use) {
+    printf("Cannot cancel template definition, please start a template "
+           "definition first.");
+    return FAILURE;
+  }
+
+  ecs_state->tmpl_buffer->in_use = false;
+
+  return SUCCESS;
+}
+
+StatusCode modsys_AttachPropsToTmpl(ModSysProps props) {
+  CHECK_NULL_VAR(ecs_state, FAILURE);
+
+  if (!ecs_state->tmpl_buffer->in_use) {
+    printf("Cannot add props, please start a template definition first.");
+    return FAILURE;
+  }
+
+  SET_FLAG(ecs_state->tmpl_buffer->props, props);
+
+  return SUCCESS;
+}
+
+ModSysTmpl *modsys_LockTmplDefinition(void) {
+  CHECK_NULL_VAR(ecs_state, NULL);
+
+  if (!ecs_state->tmpl_buffer->in_use) {
+    printf("Cannot lock tmpl definition, please start a template definition "
+           "first.");
+    return NULL;
+  }
+
+  ModSysTmpl *tmpl = ModSysTmplAdd(ecs_state->tmpl_buffer->props);
+  CHECK_ALLOC_FAILURE(tmpl, NULL,
+                      printf("Cannot lock template definition. Data provided "
+                             "is still preserved.\n"));
+  ecs_state->tmpl_buffer->in_use = false;
+
+  return tmpl;
+}
+
+StatusCode modsys_DeleteTmplDefinition(ModSysTmpl *tmpl) {
+  return ModSysTmplDelete(tmpl);
 }
 
 /* ----  HANDLE RELATED FUNCTIONS  ---- */
@@ -361,15 +445,15 @@ StatusCode modsys_Init(void) {
   ecs_state->ecs = hm_IntKeyCreate();
   CHECK_ALLOC_FAILURE(ecs_state->ecs, FAILURE, modsys_Exit());
 
-  ecs_state->builtin_props_metadata = malloc(sizeof(PropsMetadata));
+  ecs_state->builtin_props_metadata = calloc(1, sizeof(PropsMetadata));
   CHECK_ALLOC_FAILURE(ecs_state->builtin_props_metadata, FAILURE,
                       modsys_Exit());
   PopulateBuiltinPropsMetadata();
 
-  ecs_state->entity_buffer = malloc(sizeof(EntityDefineBuffer));
+  ecs_state->entity_buffer = calloc(1, sizeof(EntityDefineBuffer));
   CHECK_ALLOC_FAILURE(ecs_state->entity_buffer, FAILURE, modsys_Exit());
 
-  ecs_state->tmpl_buffer = malloc(sizeof(TmplDefineBuffer));
+  ecs_state->tmpl_buffer = calloc(1, sizeof(TmplDefineBuffer));
   CHECK_ALLOC_FAILURE(ecs_state->tmpl_buffer, FAILURE, modsys_Exit());
 
   return SUCCESS;

@@ -19,6 +19,13 @@ typedef struct __ModSysHandle ModSysHandle;
 // This will currently only support 64 components, change it to struct for more.
 typedef u64 ModSysProps;
 #define MODSYS_PROPS_COUNT (64)
+#define NO_PROP (0)
+
+extern StatusCode modsys_StartTmplDefinition(void);
+extern StatusCode modsys_CancelTmplDefinition(void);
+extern StatusCode modsys_AttachPropsToTmpl(ModSysProps props);
+extern ModSysTmpl *modsys_LockTmplDefinition(void);
+extern StatusCode modsys_DeleteTmplDefinition(ModSysTmpl *tmpl);
 
 extern StatusCode modsys_Init(void);
 extern StatusCode modsys_Exit(void);

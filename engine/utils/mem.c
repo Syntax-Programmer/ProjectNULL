@@ -46,6 +46,15 @@ void *mem_BumpArenaAlloc(BumpArena *arena, u64 size) {
   return ptr;
 }
 
+void *mem_BumpArenaCalloc(BumpArena *arena, u64 size) {
+  void *ptr = mem_BumpArenaAlloc(arena, size);
+  CHECK_ALLOC_FAILURE(ptr, NULL);
+
+  memset(ptr, 0, size);
+
+  return ptr;
+}
+
 StatusCode mem_BumpArenaReset(BumpArena *arena) {
   CHECK_NULL_ARG(arena, FAILURE);
 
@@ -151,6 +160,15 @@ void *mem_PoolArenaAlloc(PoolArena *arena) {
 
   ptr = arena->free_list;
   arena->free_list = *(void **)arena->free_list;
+
+  return ptr;
+}
+
+void *mem_PoolArenaCalloc(PoolArena *arena) {
+  void *ptr = mem_PoolArenaAlloc(arena);
+  CHECK_ALLOC_FAILURE(ptr, NULL);
+
+  memset(ptr, 0, arena->block_size);
 
   return ptr;
 }
