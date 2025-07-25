@@ -1,5 +1,5 @@
 #include "mem.h"
-#include "common.h"
+#include "status.h"
 
 /* ----  BUMP ARENA  ---- */
 
@@ -11,10 +11,13 @@ struct __BumpArena {
 
 BumpArena *mem_BumpArenaCreate(u64 size) {
   BumpArena *arena = malloc(sizeof(BumpArena));
-  CHECK_ALLOC_FAILURE(arena, NULL);
+  MEM_ALLOC_FAILURE_NO_CLEANUP_ROUTINE(arena, NULL);
 
   arena->mem = malloc(size);
-  CHECK_ALLOC_FAILURE(arena->mem, NULL, mem_BumpArenaDelete(arena));
+  IF_NULL(arena->mem) {
+    mem_BumpArenaDelete(arena);
+    MEM_ALLOC_FAILURE_SUB_ROUTINE(arena->mem, NULL);
+  }
 
   arena->offset = 0;
   arena->size = size;
@@ -23,7 +26,7 @@ BumpArena *mem_BumpArenaCreate(u64 size) {
 }
 
 StatusCode mem_BumpArenaDelete(BumpArena *arena) {
-  CHECK_NULL_ARG(arena, FAILURE);
+  NULL_FUNC_ARG_ROUTINE(arena, NULL_EXCEPTION);
 
   free(arena->mem);
   free(arena);
@@ -32,11 +35,12 @@ StatusCode mem_BumpArenaDelete(BumpArena *arena) {
 }
 
 void *mem_BumpArenaAlloc(BumpArena *arena, u64 size) {
-  CHECK_NULL_ARG(arena, NULL);
+  NULL_FUNC_ARG_ROUTINE(arena, NULL);
 
   if (arena->offset + size > arena->size) {
-    printf("Bump arena has: %zu, while allocation attempt of: %zu.\n",
-           arena->size - arena->offset, size);
+    STATUS_LOG(FAILURE,
+               "Bump arena has: %zu, while allocation attempt of: %zu.",
+               arena->size - arena->offset, size);
     return NULL;
   }
 
@@ -48,7 +52,7 @@ void *mem_BumpArenaAlloc(BumpArena *arena, u64 size) {
 
 void *mem_BumpArenaCalloc(BumpArena *arena, u64 size) {
   void *ptr = mem_BumpArenaAlloc(arena, size);
-  CHECK_ALLOC_FAILURE(ptr, NULL);
+  MEM_ALLOC_FAILURE_NO_CLEANUP_ROUTINE(ptr, NULL);
 
   memset(ptr, 0, size);
 
@@ -56,7 +60,7 @@ void *mem_BumpArenaCalloc(BumpArena *arena, u64 size) {
 }
 
 StatusCode mem_BumpArenaReset(BumpArena *arena) {
-  CHECK_NULL_ARG(arena, FAILURE);
+  NULL_FUNC_ARG_ROUTINE(arena, NULL_EXCEPTION);
 
   memset(arena->mem, 0, arena->size);
   arena->offset = 0;
@@ -88,13 +92,16 @@ struct __PoolArena {
 static StatusCode AddPoolMem(PoolArena *arena);
 
 static StatusCode AddPoolMem(PoolArena *arena) {
-  CHECK_NULL_ARG(arena, FAILURE);
+  NULL_FUNC_ARG_ROUTINE(arena, NULL_EXCEPTION);
 
   MemBlock *block = malloc(sizeof(MemBlock));
-  CHECK_ALLOC_FAILURE(block, FAILURE);
+  MEM_ALLOC_FAILURE_NO_CLEANUP_ROUTINE(block, CREATION_FAILURE);
 
   block->mem = malloc(arena->block_size * STD_POOL_SIZE);
-  CHECK_ALLOC_FAILURE(block->mem, FAILURE, free(block));
+  IF_NULL(block->mem) {
+    free(block);
+    MEM_ALLOC_FAILURE_SUB_ROUTINE(block->mem, CREATION_FAILURE);
+  }
 
   // Adding the new block to the free list.
   u8 *curr = block->mem;
@@ -113,21 +120,23 @@ static StatusCode AddPoolMem(PoolArena *arena) {
 
 PoolArena *mem_PoolArenaCreate(u64 block_size) {
   PoolArena *arena = malloc(sizeof(PoolArena));
-  CHECK_ALLOC_FAILURE(arena, NULL);
+  MEM_ALLOC_FAILURE_NO_CLEANUP_ROUTINE(arena, NULL);
 
   arena->block_size =
       (block_size < sizeof(void *)) ? sizeof(void *) : block_size;
-  CHECK_FUNCTION_FAILURE(
-      AddPoolMem(arena), NULL,
-      printf("Cannot create initial memory of the pool arena with size: %zu.\n",
-             block_size);
-      free(arena));
+  IF_FUNC_FAILED(AddPoolMem(arena)) {
+    free(arena);
+    STATUS_LOG(CREATION_FAILURE,
+               "Cannot create initial memory of the pool arena with size: %zu.",
+               block_size);
+    return NULL;
+  }
 
   return arena;
 }
 
 StatusCode mem_PoolArenaDelete(PoolArena *arena) {
-  CHECK_NULL_ARG(arena, FAILURE);
+  NULL_FUNC_ARG_ROUTINE(arena, NULL_EXCEPTION);
 
   MemBlock *curr = arena->mem_blocks, *next = NULL;
 
@@ -144,7 +153,7 @@ StatusCode mem_PoolArenaDelete(PoolArena *arena) {
 }
 
 void *mem_PoolArenaAlloc(PoolArena *arena) {
-  CHECK_NULL_ARG(arena, NULL);
+  NULL_FUNC_ARG_ROUTINE(arena, NULL);
 
   void *ptr = NULL;
 
@@ -153,10 +162,11 @@ void *mem_PoolArenaAlloc(PoolArena *arena) {
     arena->free_list = *(void **)arena->free_list;
     return ptr;
   }
-  CHECK_FUNCTION_FAILURE(
-      AddPoolMem(arena), NULL,
-      printf("Cannot allocate memory from pool, memory exhausted.\n");
-      free(arena));
+  IF_FUNC_FAILED(AddPoolMem(arena)) {
+    STATUS_LOG(FAILURE,
+               "Cannot find appropriate memory from pool to allocate.");
+    return NULL;
+  }
 
   ptr = arena->free_list;
   arena->free_list = *(void **)arena->free_list;
@@ -165,8 +175,10 @@ void *mem_PoolArenaAlloc(PoolArena *arena) {
 }
 
 void *mem_PoolArenaCalloc(PoolArena *arena) {
+  NULL_FUNC_ARG_ROUTINE(arena, NULL);
+
   void *ptr = mem_PoolArenaAlloc(arena);
-  CHECK_ALLOC_FAILURE(ptr, NULL);
+  MEM_ALLOC_FAILURE_NO_CLEANUP_ROUTINE(ptr, NULL);
 
   memset(ptr, 0, arena->block_size);
 
@@ -174,8 +186,8 @@ void *mem_PoolArenaCalloc(PoolArena *arena) {
 }
 
 StatusCode mem_PoolArenaFree(PoolArena *arena, void *entry) {
-  CHECK_NULL_ARG(arena, FAILURE);
-  CHECK_NULL_ARG(entry, FAILURE);
+  NULL_FUNC_ARG_ROUTINE(arena, NULL_EXCEPTION);
+  NULL_FUNC_ARG_ROUTINE(entry, NULL_EXCEPTION);
 
   MemBlock *curr = arena->mem_blocks;
   while (curr) {
@@ -191,15 +203,14 @@ StatusCode mem_PoolArenaFree(PoolArena *arena, void *entry) {
     curr = curr->next;
   }
 
-  printf("'entry' ptr is not a valid pointer inside the provided pool arena "
-         "in: %s.\n",
-         __func__);
+  STATUS_LOG(FAILURE,
+             "'entry' is not a valid memory of the pool arena to free.");
 
   return FAILURE;
 }
 
 StatusCode mem_PoolArenaReset(PoolArena *arena) {
-  CHECK_NULL_ARG(arena, FAILURE);
+  NULL_FUNC_ARG_ROUTINE(arena, NULL_EXCEPTION);
 
   MemBlock *curr = arena->mem_blocks;
 

@@ -102,6 +102,11 @@ typedef struct {
 
 static ECSState *ecs_state = NULL;
 
+#define ECS_STATE_MISSING_LOG                                                  \
+  ("Modsys functions called without initializing modsys.")
+#define CHECK_VALID_ECS_STATE(ret_val)                                         \
+  NULL_EXCEPTION_ROUTINE(ecs_state, ret_val, ECS_STATE_MISSING_LOG)
+
 /* ----  UTILITY FUNCTIONS   ---- */
 
 static u64 PropTableIndex(ModSysProps prop);
@@ -152,7 +157,7 @@ static u64 PropTableIndex(ModSysProps prop) {
 }
 
 static StatusCode PopulateBuiltinPropsMetadata(void) {
-  CHECK_NULL_VAR(ecs_state, FAILURE);
+  CHECK_VALID_ECS_STATE(NULL_EXCEPTION);
   /*
    * TODO:
    * builtin_props_metadata.size[PROP1] = sizeof(Prop1)
@@ -166,15 +171,17 @@ static StatusCode PopulateBuiltinPropsMetadata(void) {
 /* ----  CHUNK RELATED FUNCTIONS  ---- */
 
 static StatusCode ModSysChunkAdd(ModSysTmpl *tmpl) {
-  CHECK_NULL_VAR(ecs_state, FAILURE);
-  CHECK_NULL_ARG(tmpl, FAILURE);
+  CHECK_VALID_ECS_STATE(NULL_EXCEPTION);
+  NULL_FUNC_ARG_ROUTINE(tmpl, NULL_EXCEPTION);
 
   ModSysChunk *chunk = mem_PoolArenaAlloc(ecs_state->chunk_alloc_arena);
-  CHECK_ALLOC_FAILURE(chunk, FAILURE);
+  MEM_ALLOC_FAILURE_NO_CLEANUP_ROUTINE(chunk, CREATION_FAILURE);
 
   chunk->data = malloc(tmpl->props_struct_size * PROP_ARR_CAP);
-  CHECK_ALLOC_FAILURE(chunk->data, FAILURE,
-                      mem_PoolArenaFree(ecs_state->chunk_alloc_arena, chunk));
+  IF_NULL(chunk->data) {
+    mem_PoolArenaFree(ecs_state->chunk_alloc_arena, chunk);
+    MEM_ALLOC_FAILURE_SUB_ROUTINE(chunk->data, CREATION_FAILURE);
+  }
 
   chunk->len = 0;
 
@@ -185,8 +192,8 @@ static StatusCode ModSysChunkAdd(ModSysTmpl *tmpl) {
 }
 
 static StatusCode ModSysChunkDelete(ModSysTmpl *tmpl) {
-  CHECK_NULL_VAR(ecs_state, FAILURE);
-  CHECK_NULL_ARG(tmpl, FAILURE);
+  CHECK_VALID_ECS_STATE(NULL_EXCEPTION);
+  NULL_FUNC_ARG_ROUTINE(tmpl, NULL_EXCEPTION);
 
   ModSysChunk *curr = tmpl->chunk, *next = NULL;
   while (curr) {
@@ -203,9 +210,9 @@ static StatusCode ModSysChunkDelete(ModSysTmpl *tmpl) {
 
 static StatusCode ModSysChunkFindFreeSpot(ModSysTmpl *tmpl,
                                           ModSysHandle *handle) {
-  CHECK_NULL_VAR(ecs_state, FAILURE);
-  CHECK_NULL_ARG(tmpl, FAILURE);
-  CHECK_NULL_ARG(handle, FAILURE);
+  CHECK_VALID_ECS_STATE(NULL_EXCEPTION);
+  NULL_FUNC_ARG_ROUTINE(tmpl, NULL_EXCEPTION);
+  NULL_FUNC_ARG_ROUTINE(handle, NULL_EXCEPTION);
 
   ModSysChunk *curr = tmpl->chunk;
   while (curr) {
@@ -217,8 +224,10 @@ static StatusCode ModSysChunkFindFreeSpot(ModSysTmpl *tmpl,
     curr = curr->next;
   }
 
-  CHECK_FUNCTION_FAILURE(ModSysChunkAdd(tmpl), FAILURE,
-                         printf("Unable to find valid free spot in tmpl"));
+  IF_FUNC_FAILED(ModSysChunkAdd(tmpl)) {
+    STATUS_LOG(FAILURE, "Unable to find valid free spot in tmpl.");
+    return FAILURE;
+  }
 
   handle->chunk = tmpl->chunk;
   handle->entry_index = tmpl->chunk->len++;
@@ -227,8 +236,8 @@ static StatusCode ModSysChunkFindFreeSpot(ModSysTmpl *tmpl,
 }
 
 static StatusCode ModSysChunkReclaimFreeSpot(ModSysHandle *handle) {
-  CHECK_NULL_VAR(ecs_state, FAILURE);
-  CHECK_NULL_ARG(handle, FAILURE);
+  CHECK_VALID_ECS_STATE(NULL_EXCEPTION);
+  NULL_FUNC_ARG_ROUTINE(handle, NULL_EXCEPTION);
 
   /*
    * Guarantee: If a handle is created through valid means and not some idiot
@@ -279,10 +288,10 @@ static StatusCode ModSysChunkReclaimFreeSpot(ModSysHandle *handle) {
 /* ----  TEMPLATE RELATED FUNCTIONS  ---- */
 
 static ModSysTmpl *ModSysTmplAdd(ModSysProps props) {
-  CHECK_NULL_VAR(ecs_state, NULL);
+  CHECK_VALID_ECS_STATE(NULL);
 
   if (props == NO_PROP) {
-    printf("Can not add a tmpl with no/invalid props.\n");
+    STATUS_LOG(FAILURE, "Cannot add a tmpl with props = NO_PROP.");
     return NULL;
   }
 
@@ -293,7 +302,7 @@ static ModSysTmpl *ModSysTmplAdd(ModSysProps props) {
   }
 
   tmpl = mem_PoolArenaCalloc(ecs_state->tmpl_alloc_arena);
-  CHECK_ALLOC_FAILURE(tmpl, NULL);
+  MEM_ALLOC_FAILURE_NO_CLEANUP_ROUTINE(tmpl, NULL);
 
   tmpl->props = props;
   tmpl->props_struct_size = 0;
@@ -309,8 +318,12 @@ static ModSysTmpl *ModSysTmplAdd(ModSysProps props) {
     props ^= prop;
   }
 
-  CHECK_FUNCTION_FAILURE(ModSysChunkAdd(tmpl), NULL,
-                         mem_PoolArenaFree(ecs_state->tmpl_alloc_arena, tmpl));
+  IF_FUNC_FAILED(ModSysChunkAdd(tmpl)) {
+    mem_PoolArenaFree(ecs_state->tmpl_alloc_arena, tmpl);
+    STATUS_LOG(CREATION_FAILURE,
+               "Failed to create initial chunk for template.");
+    return NULL;
+  }
 
   hm_IntKeyAddEntry(ecs_state->ecs, props, tmpl, false);
 
@@ -318,12 +331,13 @@ static ModSysTmpl *ModSysTmplAdd(ModSysProps props) {
 }
 
 static StatusCode ModSysTmplFreeCallback(void *tmpl) {
-  CHECK_NULL_VAR(ecs_state, FAILURE);
-  CHECK_NULL_ARG(tmpl, FAILURE);
+  CHECK_VALID_ECS_STATE(NULL_EXCEPTION);
+  NULL_FUNC_ARG_ROUTINE(tmpl, NULL_EXCEPTION);
 
   ModSysTmpl *tmpl2 = tmpl;
   if (!hm_IntKeyFetchEntry(ecs_state->ecs, tmpl2->props)) {
-    printf("Invalid tmpl provided to free that doesn't exist in ecs.\n");
+    STATUS_LOG(FAILURE,
+               "Invalid tmpl provided to free that doesn't exist in ecs.");
     return FAILURE;
   }
 
@@ -339,10 +353,11 @@ static StatusCode ModSysTmplDelete(ModSysTmpl *tmpl) {
 }
 
 StatusCode modsys_StartTmplDefinition(void) {
-  CHECK_NULL_VAR(ecs_state, FAILURE);
+  CHECK_VALID_ECS_STATE(NULL_EXCEPTION);
 
   if (ecs_state->tmpl_buffer->in_use) {
-    printf("Please finish previously stared template definition.\n");
+    STATUS_LOG(FAILURE, "Cannot start template definition, please lock the "
+                        "current definition first.");
     return FAILURE;
   }
 
@@ -353,11 +368,12 @@ StatusCode modsys_StartTmplDefinition(void) {
 }
 
 StatusCode modsys_CancelTmplDefinition(void) {
-  CHECK_NULL_VAR(ecs_state, FAILURE);
+  CHECK_VALID_ECS_STATE(NULL_EXCEPTION);
 
   if (!ecs_state->tmpl_buffer->in_use) {
-    printf("Cannot cancel template definition, please start a template "
-           "definition first.");
+    STATUS_LOG(FAILURE,
+               "Cannot cancel template definition, please start a template "
+               "definition first.");
     return FAILURE;
   }
 
@@ -367,10 +383,11 @@ StatusCode modsys_CancelTmplDefinition(void) {
 }
 
 StatusCode modsys_AttachPropsToTmpl(ModSysProps props) {
-  CHECK_NULL_VAR(ecs_state, FAILURE);
+  CHECK_VALID_ECS_STATE(NULL_EXCEPTION);
 
   if (!ecs_state->tmpl_buffer->in_use) {
-    printf("Cannot add props, please start a template definition first.");
+    STATUS_LOG(FAILURE, "Cannot add props to template, please start a template "
+                        "definition first.");
     return FAILURE;
   }
 
@@ -380,18 +397,17 @@ StatusCode modsys_AttachPropsToTmpl(ModSysProps props) {
 }
 
 ModSysTmpl *modsys_LockTmplDefinition(void) {
-  CHECK_NULL_VAR(ecs_state, NULL);
+  CHECK_VALID_ECS_STATE(NULL);
 
   if (!ecs_state->tmpl_buffer->in_use) {
-    printf("Cannot lock tmpl definition, please start a template definition "
-           "first.");
+    STATUS_LOG(FAILURE, "Cannot lock tmpl definition, please start a template "
+                        "definition first.");
     return NULL;
   }
 
   ModSysTmpl *tmpl = ModSysTmplAdd(ecs_state->tmpl_buffer->props);
-  CHECK_ALLOC_FAILURE(tmpl, NULL,
-                      printf("Cannot lock template definition. Data provided "
-                             "is still preserved.\n"));
+  MEM_ALLOC_FAILURE_NO_CLEANUP_ROUTINE(tmpl, NULL);
+
   ecs_state->tmpl_buffer->in_use = false;
 
   return tmpl;
@@ -404,23 +420,29 @@ StatusCode modsys_DeleteTmplDefinition(ModSysTmpl *tmpl) {
 /* ----  HANDLE RELATED FUNCTIONS  ---- */
 
 static ModSysHandle *ModSysHandleCreate(ModSysTmpl *tmpl) {
-  CHECK_NULL_VAR(ecs_state, NULL);
-  CHECK_NULL_ARG(tmpl, NULL);
+  CHECK_VALID_ECS_STATE(NULL);
+  NULL_FUNC_ARG_ROUTINE(tmpl, NULL);
 
   ModSysHandle *handle = mem_PoolArenaAlloc(ecs_state->handle_alloc_arena);
-  CHECK_ALLOC_FAILURE(handle, NULL);
+  IF_NULL(handle) {
+    STATUS_LOG(CREATION_FAILURE, "Can not allocate memory for modsys handle.");
+    return NULL;
+  }
 
   handle->tmpl = tmpl;
-  CHECK_FUNCTION_FAILURE(
-      ModSysChunkFindFreeSpot(tmpl, handle), NULL,
-      mem_PoolArenaFree(ecs_state->handle_alloc_arena, handle));
+  IF_FUNC_FAILED(ModSysChunkFindFreeSpot(tmpl, handle)) {
+    mem_PoolArenaFree(ecs_state->handle_alloc_arena, handle);
+    STATUS_LOG(CREATION_FAILURE,
+               "Cannot find free spot in tmpl to make the handle.");
+    return NULL;
+  }
 
   return handle;
 }
 
 static StatusCode ModSysHandleDelete(ModSysHandle *handle) {
-  CHECK_NULL_VAR(ecs_state, FAILURE);
-  CHECK_NULL_ARG(handle, FAILURE);
+  CHECK_VALID_ECS_STATE(NULL_EXCEPTION);
+  NULL_FUNC_ARG_ROUTINE(handle, NULL_EXCEPTION);
 
   ModSysChunkReclaimFreeSpot(handle);
   mem_PoolArenaFree(ecs_state->handle_alloc_arena, handle);
@@ -428,33 +450,43 @@ static StatusCode ModSysHandleDelete(ModSysHandle *handle) {
   return SUCCESS;
 }
 
+/* ----  INIT/EXIT FUNCTIONS  ---- */
+
+#define INIT_FAILED_ROUTINE(x)                                                 \
+  do {                                                                         \
+    IF_NULL((x)) {                                                             \
+      modsys_Exit();                                                           \
+      MEM_ALLOC_FAILURE_SUB_ROUTINE(ecs_state->chunk_alloc_arena,              \
+                                    CREATION_FAILURE);                         \
+    }                                                                          \
+  } while (0)
+
 StatusCode modsys_Init(void) {
   // Calloc to give proper cleanup if failed to initialize.
   ecs_state = calloc(1, sizeof(ECSState));
-  CHECK_ALLOC_FAILURE(ecs_state, FAILURE);
+  INIT_FAILED_ROUTINE(ecs_state);
 
   ecs_state->chunk_alloc_arena = mem_PoolArenaCreate(sizeof(ModSysChunk));
-  CHECK_ALLOC_FAILURE(ecs_state->chunk_alloc_arena, FAILURE, modsys_Exit());
+  INIT_FAILED_ROUTINE(ecs_state->chunk_alloc_arena);
 
   ecs_state->tmpl_alloc_arena = mem_PoolArenaCreate(sizeof(ModSysTmpl));
-  CHECK_ALLOC_FAILURE(ecs_state->tmpl_alloc_arena, FAILURE, modsys_Exit());
+  INIT_FAILED_ROUTINE(ecs_state->tmpl_alloc_arena);
 
   ecs_state->handle_alloc_arena = mem_PoolArenaCreate(sizeof(ModSysHandle));
-  CHECK_ALLOC_FAILURE(ecs_state->handle_alloc_arena, FAILURE, modsys_Exit());
+  INIT_FAILED_ROUTINE(ecs_state->handle_alloc_arena);
 
   ecs_state->ecs = hm_IntKeyCreate();
-  CHECK_ALLOC_FAILURE(ecs_state->ecs, FAILURE, modsys_Exit());
+  INIT_FAILED_ROUTINE(ecs_state->ecs);
 
   ecs_state->builtin_props_metadata = calloc(1, sizeof(PropsMetadata));
-  CHECK_ALLOC_FAILURE(ecs_state->builtin_props_metadata, FAILURE,
-                      modsys_Exit());
+  INIT_FAILED_ROUTINE(ecs_state->builtin_props_metadata);
   PopulateBuiltinPropsMetadata();
 
   ecs_state->entity_buffer = calloc(1, sizeof(EntityDefineBuffer));
-  CHECK_ALLOC_FAILURE(ecs_state->entity_buffer, FAILURE, modsys_Exit());
+  INIT_FAILED_ROUTINE(ecs_state->entity_buffer);
 
   ecs_state->tmpl_buffer = calloc(1, sizeof(TmplDefineBuffer));
-  CHECK_ALLOC_FAILURE(ecs_state->tmpl_buffer, FAILURE, modsys_Exit());
+  INIT_FAILED_ROUTINE(ecs_state->tmpl_buffer);
 
   return SUCCESS;
 }

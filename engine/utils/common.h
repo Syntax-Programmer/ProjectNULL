@@ -51,52 +51,6 @@ typedef double f64;
 
 #define REQUIRE(expr) assert((expr) && "REQUIRE failed: " #expr)
 
-typedef u8 StatusCode;
-
-#define SUCCESS (0)
-#define FAILURE (1)
-
-/*
- * The __VA_ARGS__ are some additional logic, or cleanup functions that can be
- * added to it.
- */
-#define CHECK_NULL_VAR(var, ret_val, ...)                                      \
-  do {                                                                         \
-    if (!(var)) {                                                              \
-      printf("NULL var '%s' during execution of %s\n", #var, __func__);        \
-      __VA_ARGS__;                                                             \
-      return ret_val;                                                          \
-    }                                                                          \
-  } while (0)
-
-#define CHECK_NULL_ARG(arg, ret_val, ...)                                      \
-  do {                                                                         \
-    if (!(arg)) {                                                              \
-      printf("NULL argument '%s' passed to %s\n", #arg, __func__);             \
-      __VA_ARGS__;                                                             \
-      return ret_val;                                                          \
-    }                                                                          \
-  } while (0)
-
-#define CHECK_ALLOC_FAILURE(ptr, ret_val, ...)                                 \
-  do {                                                                         \
-    if (!(ptr)) {                                                              \
-      printf("Memory allocation failure of '%s' in function %s\n", #ptr,       \
-             __func__);                                                        \
-      __VA_ARGS__;                                                             \
-      return ret_val;                                                          \
-    }                                                                          \
-  } while (0)
-
-#define CHECK_FUNCTION_FAILURE(func, ret_val, ...)                             \
-  do {                                                                         \
-    if ((func) != SUCCESS) {                                                   \
-      printf("Function '%s' failed in the caller %s\n", #func, __func__);      \
-      __VA_ARGS__;                                                             \
-      return ret_val;                                                          \
-    }                                                                          \
-  } while (0)
-
 #ifdef __cplusplus
 }
 #endif

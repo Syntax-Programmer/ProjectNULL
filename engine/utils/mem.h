@@ -5,6 +5,7 @@ extern "C" {
 #endif
 
 #include "common.h"
+#include "status.h"
 
 /* ----  BUMP ARENA  ---- */
 

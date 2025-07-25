@@ -65,14 +65,20 @@ static inline u64 SplitMix64Hasher(i64 x) {
 
 Hm_IntKey *hm_IntKeyCreate(void) {
   Hm_IntKey *hm = malloc(sizeof(Hm_IntKey));
-  CHECK_ALLOC_FAILURE(hm, NULL);
+  MEM_ALLOC_FAILURE_NO_CLEANUP_ROUTINE(hm, NULL);
 
   hm->structure = arr_BuffArrCreate(MIN_HASH_BUCKET_SIZE, sizeof(u64));
-  CHECK_ALLOC_FAILURE(hm->structure, NULL, free(hm));
+  IF_NULL(hm->structure) {
+    free(hm);
+    MEM_ALLOC_FAILURE_SUB_ROUTINE(hm->mem, NULL);
+  }
 
   hm->entries = arr_VectorCreate(sizeof(Hm_IntKeyEntries));
-  CHECK_ALLOC_FAILURE(hm->structure, NULL, arr_BuffArrDelete(hm->structure);
-                      free(hm));
+  IF_NULL(hm->entries) {
+    arr_BuffArrDelete(hm->structure);
+    free(hm);
+    MEM_ALLOC_FAILURE_SUB_ROUTINE(hm->mem, NULL);
+  }
 
   Hm_IntKeyEntries *structure = arr_BuffArrRaw(hm->structure);
   // This will set each index to EMPTY, as memset works per byte.
@@ -83,7 +89,7 @@ Hm_IntKey *hm_IntKeyCreate(void) {
 
 StatusCode hm_IntKeyDelete(Hm_IntKey *hm,
                            StatusCode (*val_delete_callback)(void *val)) {
-  CHECK_NULL_ARG(hm, FAILURE);
+  NULL_FUNC_ARG_ROUTINE(hm, FAILURE);
 
   if (hm->structure) {
     arr_BuffArrDelete(hm->structure);
@@ -96,8 +102,8 @@ StatusCode hm_IntKeyDelete(Hm_IntKey *hm,
         val_delete_callback(entries[i].val);
       }
     } else {
-      printf("Invalid val delete callback provided to delete hm_IntKeyDelete. "
-             "Memory leaks can occur.\n");
+      STATUS_LOG(WARNING, "Invalid val delete callback provided to delete "
+                          "hm_IntKeyDelete. Memory leaks can occur.");
     }
     arr_VectorDelete(hm->entries);
   }
@@ -113,11 +119,12 @@ static u64 GrowHmEntriesCallback(u64 old_cap) {
 }
 
 static StatusCode GrowHmIntKeyStructure(Hm_IntKey *hm) {
-  CHECK_NULL_ARG(hm, FAILURE);
+  NULL_FUNC_ARG_ROUTINE(hm, NULL_EXCEPTION);
 
-  CHECK_FUNCTION_FAILURE(
-      arr_BuffArrGrow(hm->structure, GrowHmStructureCallback), FAILURE,
-      printf("Can not grow hashmap.\n"));
+  IF_FUNC_FAILED(arr_BuffArrGrow(hm->structure, GrowHmStructureCallback)) {
+    STATUS_LOG(FAILURE, "Cannot grow hashmap.");
+    return FAILURE;
+  }
 
   u64 mask = arr_BuffArrCap(hm->structure) - 1;
   Hm_IntKeyEntries *entries = arr_VectorRaw(hm->entries);
@@ -139,14 +146,14 @@ static StatusCode GrowHmIntKeyStructure(Hm_IntKey *hm) {
 
 StatusCode hm_IntKeyAddEntry(Hm_IntKey *hm, i64 key, void *val,
                              bool overwrite) {
-  CHECK_NULL_ARG(hm, FAILURE);
+  NULL_FUNC_ARG_ROUTINE(hm, NULL_EXCEPTION);
 
   u64 hm_len = hm_IntKeyGetLen(hm);
   u64 structure_cap = arr_BuffArrCap(hm->structure);
 
   if (hm_len == structure_cap) {
-    printf("Hashmap is filled completely, previous grow attempts must have "
-           "failed.\n");
+    STATUS_LOG(FAILURE, "Hashmap is filled completely, previous grow attempts "
+                        "must have failed.");
     return FAILURE;
   } else if (hm_len >= structure_cap * LOAD_FACTOR) {
     // Not failing here as about 30% of slots still empty.
@@ -175,9 +182,11 @@ StatusCode hm_IntKeyAddEntry(Hm_IntKey *hm, i64 key, void *val,
   }
 
   Hm_IntKeyEntries new_entry = {.hash = hash, .val = val, .key = key};
-  CHECK_FUNCTION_FAILURE(
-      arr_VectorPush(hm->entries, &new_entry, GrowHmEntriesCallback), FAILURE,
-      printf("Can not push any more entries to the hashmap.\n"));
+  IF_FUNC_FAILED(
+      arr_VectorPush(hm->entries, &new_entry, GrowHmEntriesCallback)) {
+    STATUS_LOG(FAILURE, "Cannot push any more entries to the hashmap.");
+    return FAILURE;
+  }
 
   arr_BuffArrSet(hm->structure, i, &hm_len);
 
@@ -185,7 +194,7 @@ StatusCode hm_IntKeyAddEntry(Hm_IntKey *hm, i64 key, void *val,
 }
 
 void *hm_IntKeyFetchEntry(const Hm_IntKey *hm, i64 key) {
-  CHECK_NULL_ARG(hm, NULL);
+  NULL_FUNC_ARG_ROUTINE(hm, NULL);
 
   u64 mask = arr_BuffArrCap(hm->structure) - 1;
   u64 hash = SplitMix64Hasher(key);
@@ -203,15 +212,17 @@ void *hm_IntKeyFetchEntry(const Hm_IntKey *hm, i64 key) {
     PROBER(i, perturb, mask);
   }
 
+  STATUS_LOG(OUT_OF_BOUNDS_ACCESS,
+             "Cannot fetch a key that doesn't exist in the hm: %ld", key);
   return NULL;
 }
 
 static StatusCode FetchHmIntKeyStructureEntryIndices(Hm_IntKey *hm, i64 key,
                                                      u64 *pStructure_i,
                                                      u64 *pEntry_i) {
-  CHECK_NULL_ARG(hm, FAILURE);
-  CHECK_NULL_ARG(pStructure_i, FAILURE);
-  CHECK_NULL_ARG(pEntry_i, FAILURE);
+  NULL_FUNC_ARG_ROUTINE(hm, NULL_EXCEPTION);
+  NULL_FUNC_ARG_ROUTINE(pStructure_i, NULL_EXCEPTION);
+  NULL_FUNC_ARG_ROUTINE(pEntry_i, NULL_EXCEPTION);
 
   *pStructure_i = *pEntry_i = EMPTY_INDEX;
 
@@ -229,16 +240,17 @@ static StatusCode FetchHmIntKeyStructureEntryIndices(Hm_IntKey *hm, i64 key,
     if (entries[entry_index].key == key) {
       *pStructure_i = i;
       *pEntry_i = entry_index;
+      return SUCCESS;
     }
     PROBER(i, perturb, mask);
   }
 
-  return SUCCESS;
+  return OUT_OF_BOUNDS_ACCESS;
 }
 
 StatusCode hm_IntKeyDeleteEntry(Hm_IntKey *hm, i64 key,
                                 StatusCode (*val_delete_callback)(void *val)) {
-  CHECK_NULL_ARG(hm, FAILURE);
+  NULL_FUNC_ARG_ROUTINE(hm, NULL_EXCEPTION);
 
   u64 hm_len = hm_IntKeyGetLen(hm);
   Hm_IntKeyEntries *entries = arr_VectorRaw(hm->entries);
@@ -249,7 +261,9 @@ StatusCode hm_IntKeyDeleteEntry(Hm_IntKey *hm, i64 key,
 
   FetchHmIntKeyStructureEntryIndices(hm, key, &key_structure_i, &key_entry_i);
   if (key_structure_i == EMPTY_INDEX) {
-    return FAILURE;
+    STATUS_LOG(OUT_OF_BOUNDS_ACCESS,
+               "Cannot delete a key that doesn't exist in the hm: %ld", key);
+    return OUT_OF_BOUNDS_ACCESS;
   }
   FetchHmIntKeyStructureEntryIndices(hm, entries[hm_len - 1].key,
                                      &last_entry_structure_i, &last_entry_i);
@@ -258,10 +272,10 @@ StatusCode hm_IntKeyDeleteEntry(Hm_IntKey *hm, i64 key,
   if (val_delete_callback) {
     val_delete_callback(entries[key_entry_i].val);
   } else {
-    printf(
-        "Invalid val delete callback provided to delete hm_IntKeyDeleteEntry. "
-        "Memory leaks can occur.\n");
+    STATUS_LOG(WARNING, "Invalid val delete callback provided to delete "
+                        "hm_IntKeyDelete. Memory leaks can occur.");
   }
+
   entries[key_entry_i] = entries[last_entry_i];
   arr_VectorPop(hm->entries, NULL);
 
@@ -273,7 +287,7 @@ StatusCode hm_IntKeyDeleteEntry(Hm_IntKey *hm, i64 key,
 }
 
 u64 hm_IntKeyGetLen(const Hm_IntKey *hm) {
-  CHECK_NULL_ARG(hm, FAILURE);
+  NULL_FUNC_ARG_ROUTINE(hm, NULL_EXCEPTION);
 
   return arr_VectorLen(hm->entries);
 }
@@ -281,8 +295,8 @@ u64 hm_IntKeyGetLen(const Hm_IntKey *hm) {
 StatusCode hm_IntKeyForEach(Hm_IntKey *hm,
                             void (*foreach_callback)(const i64 key,
                                                      void *val)) {
-  CHECK_NULL_ARG(hm, FAILURE);
-  CHECK_NULL_ARG(foreach_callback, FAILURE);
+  NULL_FUNC_ARG_ROUTINE(hm, NULL_EXCEPTION);
+  NULL_FUNC_ARG_ROUTINE(foreach_callback, NULL_EXCEPTION);
 
   Hm_IntKeyEntries *entries = arr_VectorRaw(hm->entries);
   u64 len = hm_IntKeyGetLen(hm);

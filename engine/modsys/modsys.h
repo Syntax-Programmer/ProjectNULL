@@ -5,6 +5,7 @@ extern "C" {
 #endif
 
 #include "../utils/common.h"
+#include "../utils/status.h"
 
 /*
  * All the properties included here without the PROPS_INTERNALS definition.
@@ -21,11 +22,15 @@ typedef u64 ModSysProps;
 #define MODSYS_PROPS_COUNT (64)
 #define NO_PROP (0)
 
+/* ----  TEMPLATE RELATED FUNCTIONS  ---- */
+
 extern StatusCode modsys_StartTmplDefinition(void);
 extern StatusCode modsys_CancelTmplDefinition(void);
 extern StatusCode modsys_AttachPropsToTmpl(ModSysProps props);
 extern ModSysTmpl *modsys_LockTmplDefinition(void);
 extern StatusCode modsys_DeleteTmplDefinition(ModSysTmpl *tmpl);
+
+/* ----  INIT/EXIT FUNCTIONS  ---- */
 
 extern StatusCode modsys_Init(void);
 extern StatusCode modsys_Exit(void);

@@ -17,10 +17,13 @@ Vector *arr_VectorCreate(u64 elem_size) {
 
 Vector *arr_VectorCustomCreate(u64 elem_size, u64 cap) {
   Vector *arr = malloc(sizeof(Vector));
-  CHECK_ALLOC_FAILURE(arr, NULL);
+  MEM_ALLOC_FAILURE_NO_CLEANUP_ROUTINE(arr, NULL);
 
   arr->mem = malloc(cap * elem_size);
-  CHECK_ALLOC_FAILURE(arr->mem, NULL, arr_VectorDelete(arr));
+  IF_NULL(arr->mem) {
+    arr_VectorDelete(arr);
+    MEM_ALLOC_FAILURE_SUB_ROUTINE(arr->mem, NULL);
+  }
 
   arr->len = 0;
   arr->elem_size = elem_size;
@@ -30,7 +33,7 @@ Vector *arr_VectorCustomCreate(u64 elem_size, u64 cap) {
 }
 
 StatusCode arr_VectorDelete(Vector *arr) {
-  CHECK_NULL_ARG(arr, FAILURE);
+  NULL_FUNC_ARG_ROUTINE(arr, NULL_EXCEPTION);
 
   free(arr->mem);
   free(arr);
@@ -39,12 +42,13 @@ StatusCode arr_VectorDelete(Vector *arr) {
 }
 
 StatusCode arr_VectorGet(const Vector *arr, u64 i, void *dest) {
-  CHECK_NULL_ARG(arr, FAILURE);
-  CHECK_NULL_ARG(dest, FAILURE);
+  NULL_FUNC_ARG_ROUTINE(arr, NULL_EXCEPTION);
+  NULL_FUNC_ARG_ROUTINE(dest, NULL_EXCEPTION);
 
   if (i >= arr->len) {
-    printf("Can not access vector array beyond its len.\n");
-    return FAILURE;
+    STATUS_LOG(OUT_OF_BOUNDS_ACCESS,
+               "Cannot access vector array beyond its len.");
+    return OUT_OF_BOUNDS_ACCESS;
   }
 
   memcpy(dest, MEM_OFFSET(arr->mem, i * arr->elem_size), arr->elem_size);
@@ -53,12 +57,13 @@ StatusCode arr_VectorGet(const Vector *arr, u64 i, void *dest) {
 }
 
 StatusCode arr_VectorSet(Vector *arr, u64 i, const void *data) {
-  CHECK_NULL_ARG(arr, FAILURE);
-  CHECK_NULL_ARG(data, FAILURE);
+  NULL_FUNC_ARG_ROUTINE(arr, NULL_EXCEPTION);
+  NULL_FUNC_ARG_ROUTINE(data, NULL_EXCEPTION);
 
   if (i >= arr->len) {
-    printf("Can not access vector array beyond its len.\n");
-    return FAILURE;
+    STATUS_LOG(OUT_OF_BOUNDS_ACCESS,
+               "Cannot access vector array beyond its len.");
+    return OUT_OF_BOUNDS_ACCESS;
   }
 
   memcpy(MEM_OFFSET(arr->mem, i * arr->elem_size), data, arr->elem_size);
@@ -68,18 +73,18 @@ StatusCode arr_VectorSet(Vector *arr, u64 i, const void *data) {
 
 StatusCode arr_VectorPush(Vector *arr, const void *data,
                           u64 (*grow_callback)(u64 old_cap)) {
-  CHECK_NULL_ARG(arr, FAILURE);
-  CHECK_NULL_ARG(data, FAILURE);
+  NULL_FUNC_ARG_ROUTINE(arr, NULL_EXCEPTION);
+  NULL_FUNC_ARG_ROUTINE(data, NULL_EXCEPTION);
 
   if (arr->len == arr->cap) {
     u64 new_cap = (grow_callback) ? grow_callback(arr->cap) : arr->cap * 2;
     if (new_cap < arr->cap) {
-      printf("Can not grow push array, faulty grow callback. "
-             "Default grow strat to be used.");
+      STATUS_LOG(WARNING, "Cannot grow vector, faulty grow callback. Default "
+                          "grow strat to be used.");
       new_cap = arr->cap * 2;
     }
     void *new_mem = realloc(arr->mem, new_cap * arr->elem_size);
-    CHECK_ALLOC_FAILURE(new_cap, FAILURE);
+    MEM_ALLOC_FAILURE_NO_CLEANUP_ROUTINE(new_mem, CREATION_FAILURE);
 
     arr->mem = new_mem;
     arr->cap = new_cap;
@@ -92,10 +97,10 @@ StatusCode arr_VectorPush(Vector *arr, const void *data,
 }
 
 StatusCode arr_VectorPop(Vector *arr, void *dest) {
-  CHECK_NULL_ARG(arr, FAILURE);
+  NULL_FUNC_ARG_ROUTINE(arr, NULL_EXCEPTION);
 
   if (!arr->len) {
-    printf("Can not pop more from the vector array.\n");
+    STATUS_LOG(FAILURE, "Can not pop more from the vector array.");
     return FAILURE;
   }
 
@@ -111,16 +116,16 @@ StatusCode arr_VectorPop(Vector *arr, void *dest) {
 }
 
 u64 arr_VectorLen(const Vector *arr) {
-  CHECK_NULL_ARG(arr, -1);
+  NULL_FUNC_ARG_ROUTINE(arr, -1);
 
   return arr->len;
 }
 
 StatusCode arr_VectorFit(Vector *arr) {
-  CHECK_NULL_ARG(arr, FAILURE);
+  NULL_FUNC_ARG_ROUTINE(arr, NULL_EXCEPTION);
 
   void *new_mem = realloc(arr->mem, arr->len * arr->elem_size);
-  CHECK_ALLOC_FAILURE(new_mem, FAILURE);
+  MEM_ALLOC_FAILURE_NO_CLEANUP_ROUTINE(new_mem, CREATION_FAILURE);
 
   arr->cap = arr->len;
   arr->mem = new_mem;
@@ -129,7 +134,7 @@ StatusCode arr_VectorFit(Vector *arr) {
 }
 
 StatusCode arr_VectorReset(Vector *arr) {
-  CHECK_NULL_ARG(arr, FAILURE);
+  NULL_FUNC_ARG_ROUTINE(arr, NULL_EXCEPTION);
 
   memset(arr->mem, 0, arr->cap * arr->elem_size);
   arr->len = 0;
@@ -138,15 +143,15 @@ StatusCode arr_VectorReset(Vector *arr) {
 }
 
 void *arr_VectorRaw(const Vector *arr) {
-  CHECK_NULL_ARG(arr, NULL);
+  NULL_FUNC_ARG_ROUTINE(arr, NULL);
 
   return arr->mem;
 }
 
 StatusCode arr_VectorForEach(Vector *arr,
                              StatusCode (*foreach_callback)(void *val)) {
-  CHECK_NULL_ARG(arr, FAILURE);
-  CHECK_NULL_ARG(foreach_callback, FAILURE);
+  NULL_FUNC_ARG_ROUTINE(arr, NULL_EXCEPTION);
+  NULL_FUNC_ARG_ROUTINE(foreach_callback, NULL_EXCEPTION);
 
   for (u64 i = 0; i < arr->len; i++) {
     foreach_callback(MEM_OFFSET(arr->mem, i * arr->elem_size));
@@ -165,10 +170,13 @@ struct __BuffArr {
 
 BuffArr *arr_BuffArrCreate(u64 cap, u64 elem_size) {
   BuffArr *arr = malloc(sizeof(BuffArr));
-  CHECK_ALLOC_FAILURE(arr, NULL);
+  MEM_ALLOC_FAILURE_NO_CLEANUP_ROUTINE(arr, NULL);
 
   arr->mem = calloc(cap, elem_size);
-  CHECK_ALLOC_FAILURE(arr->mem, NULL, arr_BuffArrDelete(arr));
+  IF_NULL(arr->mem) {
+    arr_BuffArrDelete(arr);
+    MEM_ALLOC_FAILURE_SUB_ROUTINE(arr->mem, NULL);
+  }
 
   arr->elem_size = elem_size;
   arr->cap = cap;
@@ -177,7 +185,7 @@ BuffArr *arr_BuffArrCreate(u64 cap, u64 elem_size) {
 }
 
 StatusCode arr_BuffArrDelete(BuffArr *arr) {
-  CHECK_NULL_ARG(arr, FAILURE);
+  NULL_FUNC_ARG_ROUTINE(arr, NULL_EXCEPTION);
 
   free(arr->mem);
   free(arr);
@@ -186,12 +194,13 @@ StatusCode arr_BuffArrDelete(BuffArr *arr) {
 }
 
 StatusCode arr_BuffArrGet(const BuffArr *arr, u64 i, void *dest) {
-  CHECK_NULL_ARG(arr, FAILURE);
-  CHECK_NULL_ARG(dest, FAILURE);
+  NULL_FUNC_ARG_ROUTINE(arr, NULL_EXCEPTION);
+  NULL_FUNC_ARG_ROUTINE(dest, NULL_EXCEPTION);
 
   if (i >= arr->cap) {
-    printf("Can not access buffer array beyond its cap.\n");
-    return FAILURE;
+    STATUS_LOG(OUT_OF_BOUNDS_ACCESS,
+               "Cannot access buff array beyond its cap.");
+    return OUT_OF_BOUNDS_ACCESS;
   }
 
   memcpy(dest, MEM_OFFSET(arr->mem, i * arr->elem_size), arr->elem_size);
@@ -200,12 +209,13 @@ StatusCode arr_BuffArrGet(const BuffArr *arr, u64 i, void *dest) {
 }
 
 StatusCode arr_BuffArrSet(BuffArr *arr, u64 i, const void *data) {
-  CHECK_NULL_ARG(arr, FAILURE);
-  CHECK_NULL_ARG(data, FAILURE);
+  NULL_FUNC_ARG_ROUTINE(arr, NULL_EXCEPTION);
+  NULL_FUNC_ARG_ROUTINE(data, NULL_EXCEPTION);
 
   if (i >= arr->cap) {
-    printf("Can not access buffer array beyond its cap.\n");
-    return FAILURE;
+    STATUS_LOG(OUT_OF_BOUNDS_ACCESS,
+               "Cannot access buff array beyond its cap.");
+    return OUT_OF_BOUNDS_ACCESS;
   }
 
   memcpy(MEM_OFFSET(arr->mem, i * arr->elem_size), data, arr->elem_size);
@@ -214,22 +224,22 @@ StatusCode arr_BuffArrSet(BuffArr *arr, u64 i, const void *data) {
 }
 
 u64 arr_BuffArrCap(const BuffArr *arr) {
-  CHECK_NULL_ARG(arr, FAILURE);
+  NULL_FUNC_ARG_ROUTINE(arr, NULL_EXCEPTION);
 
   return arr->cap;
 }
 
 StatusCode arr_BuffArrGrow(BuffArr *arr, u64 (*grow_callback)(u64 old_cap)) {
-  CHECK_NULL_ARG(arr, FAILURE);
+  NULL_FUNC_ARG_ROUTINE(arr, NULL_EXCEPTION);
 
   u64 new_cap = (grow_callback) ? grow_callback(arr->cap) : arr->cap * 2;
   if (new_cap < arr->cap) {
-    printf("Can not grow buffer array, faulty grow callback. "
-           "Default grow strat to be used.");
+    STATUS_LOG(WARNING, "Cannot grow vector, faulty grow callback. Default "
+                        "grow strat to be used.");
     new_cap = arr->cap * 2;
   }
   void *new_mem = realloc(arr->mem, new_cap * arr->elem_size);
-  CHECK_ALLOC_FAILURE(new_cap, FAILURE);
+  MEM_ALLOC_FAILURE_NO_CLEANUP_ROUTINE(new_mem, CREATION_FAILURE);
 
   arr->mem = new_mem;
   arr->cap = new_cap;
@@ -238,7 +248,7 @@ StatusCode arr_BuffArrGrow(BuffArr *arr, u64 (*grow_callback)(u64 old_cap)) {
 }
 
 StatusCode arr_BuffArrReset(BuffArr *arr) {
-  CHECK_NULL_ARG(arr, FAILURE);
+  NULL_FUNC_ARG_ROUTINE(arr, NULL_EXCEPTION);
 
   memset(arr->mem, 0, arr->cap * arr->elem_size);
 
@@ -246,15 +256,15 @@ StatusCode arr_BuffArrReset(BuffArr *arr) {
 }
 
 void *arr_BuffArrRaw(const BuffArr *arr) {
-  CHECK_NULL_ARG(arr, NULL);
+  NULL_FUNC_ARG_ROUTINE(arr, NULL);
 
   return arr->mem;
 }
 
 StatusCode arr_BuffArrForEach(BuffArr *arr,
                               StatusCode (*foreach_callback)(void *val)) {
-  CHECK_NULL_ARG(arr, FAILURE);
-  CHECK_NULL_ARG(foreach_callback, FAILURE);
+  NULL_FUNC_ARG_ROUTINE(arr, NULL_EXCEPTION);
+  NULL_FUNC_ARG_ROUTINE(foreach_callback, NULL_EXCEPTION);
 
   for (u64 i = 0; i < arr->cap; i++) {
     foreach_callback(MEM_OFFSET(arr->mem, i * arr->elem_size));

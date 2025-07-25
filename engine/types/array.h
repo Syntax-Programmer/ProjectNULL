@@ -5,6 +5,7 @@ extern "C" {
 #endif
 
 #include "../utils/common.h"
+#include "../utils/status.h"
 
 /* ----  VECTOR  ---- */
 
