@@ -77,6 +77,11 @@ static EcsState *ecs_state = NULL;
 /* ----  UTILITY FUNCTIONS   ---- */
 
 static u64 PropsMetadataTableIndex(EntityProps prop);
+
+/* ----  PROPS METADATA RELATED FUNCTIONS  ---- */
+
+static StatusCode PropsMetadataCreate(void);
+static StatusCode PropsMetadataDelete(void);
 static StatusCode PopulateBuiltinPropsMetadata(void);
 
 /* ----  LAYOUT RELATED FUNCTIONS  ---- */
@@ -88,8 +93,9 @@ static StatusCode LayoutDeleteCallback(void *layout);
 /* ----  UTILITY FUNCTIONS   ---- */
 
 static u64 PropsMetadataTableIndex(EntityProps prop) {
-  if (prop == 0)
+  if (prop == 0) {
     return INVALID_INDEX; //  Undefined for zero
+  }
 
 #if defined(__GNUC__) || defined(__clang__)
   return __builtin_ctzll(prop);
@@ -108,6 +114,37 @@ static u64 PropsMetadataTableIndex(EntityProps prop) {
   }
   return n;
 #endif
+}
+
+/* ----  PROPS METADATA RELATED FUNCTIONS  ---- */
+
+static StatusCode PropsMetadataCreate(void) {
+  ecs_state->builtin_props_metadata = malloc(sizeof(PropsMetadata));
+  MEM_ALLOC_FAILURE_NO_CLEANUP_ROUTINE(ecs_state->builtin_props_metadata,
+                                       CREATION_FAILURE);
+
+  ecs_state->builtin_props_metadata->size =
+      arr_VectorCustomCreate(sizeof(u64), BUILTIN_PROPS_COUNT);
+  IF_NULL(ecs_state->builtin_props_metadata->size) {
+    PropsMetadataDelete();
+    MEM_ALLOC_FAILURE_SUB_ROUTINE(ecs_state->builtin_props_metadata->size,
+                                  CREATION_FAILURE);
+  }
+
+  return SUCCESS;
+}
+
+static StatusCode PropsMetadataDelete(void) {
+  if (!ecs_state->builtin_props_metadata) {
+    return SUCCESS;
+  }
+
+  if (ecs_state->builtin_props_metadata->size) {
+    arr_VectorDelete(ecs_state->builtin_props_metadata->size);
+  }
+  free(ecs_state->builtin_props_metadata);
+
+  return SUCCESS;
 }
 
 static StatusCode PopulateBuiltinPropsMetadata(void) {
@@ -359,15 +396,16 @@ StatusCode ecs_Init(void) {
   ecs_state->ecs = hm_IntKeyCreate();
   INIT_FAILED_ROUTINE(ecs_state->ecs);
 
-  ecs_state->builtin_props_metadata = calloc(1, sizeof(PropsMetadata));
-  INIT_FAILED_ROUTINE(ecs_state->builtin_props_metadata);
+  IF_FUNC_FAILED(PropsMetadataCreate()) {
+    INIT_FAILED_ROUTINE(ecs_state->builtin_props_metadata);
+  }
   PopulateBuiltinPropsMetadata();
 
   return SUCCESS;
 }
 
 StatusCode ecs_Exit(void) {
-  if (!ecs_state) {
+  IF_NULL(ecs_state) {
     return SUCCESS;
   }
 
@@ -378,11 +416,12 @@ StatusCode ecs_Exit(void) {
     if (ecs_state->layout_arena) {
       hm_IntKeyDelete(ecs_state->ecs, LayoutDeleteCallback);
       mem_PoolArenaDelete(ecs_state->layout_arena);
+    } else {
+      hm_IntKeyDelete(ecs_state->ecs, NULL);
     }
-    hm_IntKeyDelete(ecs_state->ecs, NULL);
   }
   if (ecs_state->builtin_props_metadata) {
-    free(ecs_state->builtin_props_metadata);
+    PropsMetadataDelete();
   }
 
   free(ecs_state);

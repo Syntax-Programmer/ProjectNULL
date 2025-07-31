@@ -196,13 +196,10 @@ struct __BuffArr {
 };
 
 BuffArr *arr_BuffArrCreate(u64 cap, u64 elem_size) {
-  void *ptr = calloc(1, sizeof(BuffArr) + (cap * elem_size));
-  MEM_ALLOC_FAILURE_NO_CLEANUP_ROUTINE(ptr, NULL);
-
   BuffArr *arr = malloc(sizeof(BuffArr));
   MEM_ALLOC_FAILURE_NO_CLEANUP_ROUTINE(arr, NULL);
 
-  arr->mem = arr->mem = malloc(elem_size * cap);
+  arr->mem = malloc(elem_size * cap);
   IF_NULL(arr->mem) {
     arr_BuffArrDelete(arr);
     MEM_ALLOC_FAILURE_SUB_ROUTINE(arr->mem, NULL);

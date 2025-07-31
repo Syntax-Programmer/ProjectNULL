@@ -117,7 +117,7 @@ static StatusCode AddPoolMem(PoolArena *arena) {
 }
 
 PoolArena *mem_PoolArenaCreate(u64 block_size) {
-  PoolArena *arena = malloc(sizeof(PoolArena));
+  PoolArena *arena = calloc(1, sizeof(PoolArena));
   MEM_ALLOC_FAILURE_NO_CLEANUP_ROUTINE(arena, NULL);
 
   arena->block_size =
@@ -137,7 +137,6 @@ StatusCode mem_PoolArenaDelete(PoolArena *arena) {
   NULL_FUNC_ARG_ROUTINE(arena, NULL_EXCEPTION);
 
   MemBlock *curr = arena->mem_blocks, *next = NULL;
-
   while (curr) {
     next = curr->next;
     free(curr->mem);

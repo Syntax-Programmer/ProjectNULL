@@ -16,21 +16,21 @@ typedef u64 EntityProps;
 
 /* ----  PROPS RELATED FUNCTIONS  ---- */
 
-extern StatusCode ecs_AttachProp(EntityProps *props, EntityProps to_attach);
-extern StatusCode ecs_DetachProp(EntityProps *props, EntityProps to_detach);
-extern StatusCode ecs_ClearProps(EntityProps *props);
+StatusCode ecs_AttachProp(EntityProps *props, EntityProps to_attach);
+StatusCode ecs_DetachProp(EntityProps *props, EntityProps to_detach);
+StatusCode ecs_ClearProps(EntityProps *props);
 
 /* ----  LAYOUT RELATED FUNCTIONS  ---- */
 
-extern EntityLayout *ecs_EntityLayoutCreate(EntityProps props);
-extern StatusCode ecs_EntityLayoutDelete(EntityLayout *layout);
-extern Entity *ecs_CreateEntityFromLayout(EntityLayout *layout);
-extern StatusCode ecs_DeleteEntityFromLayout(Entity *entity);
+EntityLayout *ecs_EntityLayoutCreate(EntityProps props);
+StatusCode ecs_EntityLayoutDelete(EntityLayout *layout);
+Entity *ecs_CreateEntityFromLayout(EntityLayout *layout);
+StatusCode ecs_DeleteEntityFromLayout(Entity *entity);
 
 /* ----  INIT/EXIT FUNCTIONS  ---- */
 
-extern StatusCode ecs_Init(void);
-extern StatusCode ecs_Exit(void);
+StatusCode ecs_Init(void);
+StatusCode ecs_Exit(void);
 
 #ifdef __cplusplus
 }

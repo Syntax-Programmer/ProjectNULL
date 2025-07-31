@@ -32,7 +32,7 @@ typedef enum {
 } StatusCode;
 
 // A thread safe and generally better logger.
-extern void status_Log(StatusCode code, const char *file_name,
+void status_Log(StatusCode code, const char *file_name,
                        const char *func_name, i32 line_num, const char *fmt,
                        ...);
 #define STATUS_LOG(code, log, ...)                                             \

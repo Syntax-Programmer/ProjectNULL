@@ -11,11 +11,11 @@ extern "C" {
 
 typedef struct __BumpArena BumpArena;
 
-extern BumpArena *mem_BumpArenaCreate(u64 size);
-extern StatusCode mem_BumpArenaDelete(BumpArena *arena);
-extern void *mem_BumpArenaAlloc(BumpArena *arena, u64 size);
-extern void *mem_BumpArenaCalloc(BumpArena *arena, u64 size);
-extern StatusCode mem_BumpArenaReset(BumpArena *arena);
+BumpArena *mem_BumpArenaCreate(u64 size);
+StatusCode mem_BumpArenaDelete(BumpArena *arena);
+void *mem_BumpArenaAlloc(BumpArena *arena, u64 size);
+void *mem_BumpArenaCalloc(BumpArena *arena, u64 size);
+StatusCode mem_BumpArenaReset(BumpArena *arena);
 
 /* ----  POOL ARENA  ---- */
 

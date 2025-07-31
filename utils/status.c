@@ -1,11 +1,9 @@
 #include "status.h"
 #include <pthread.h>
 #include <stdarg.h>
-#include <time.h>
 
 static const char *StatusToStr(StatusCode code);
 
-static FILE *log_file = NULL;
 static pthread_mutex_t log_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static const char *StatusToStr(StatusCode code) {
