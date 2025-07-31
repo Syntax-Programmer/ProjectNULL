@@ -28,8 +28,8 @@ struct __Entity {
 };
 
 typedef struct {
-  u64 size[ECS_PROPS_COUNT];
-  bool is_serializable[ECS_PROPS_COUNT];
+  u64 size[BUILTIN_PROPS_COUNT];
+  bool is_serializable[BUILTIN_PROPS_COUNT];
 } PropsMetadata;
 
 typedef struct {

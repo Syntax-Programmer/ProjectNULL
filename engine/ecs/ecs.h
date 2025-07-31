@@ -11,7 +11,7 @@ typedef struct __EntityLayout EntityLayout;
 typedef struct __Entity Entity;
 
 typedef u64 EntityProps;
-#define ECS_PROPS_COUNT (64)
+#define BUILTIN_PROPS_COUNT (64)
 
 /* ----  LAYOUT RELATED FUNCTIONS  ---- */
 
