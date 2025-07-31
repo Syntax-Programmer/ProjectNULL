@@ -145,7 +145,7 @@ static StatusCode GrowHmIntKeyStructure(Hm_IntKey *hm) {
 }
 
 StatusCode hm_IntKeyAddEntry(Hm_IntKey *hm, i64 key, void *val,
-                             bool overwrite) {
+                             HmAddModes mode) {
   NULL_FUNC_ARG_ROUTINE(hm, NULL_EXCEPTION);
 
   u64 hm_len = hm_IntKeyGetLen(hm);
@@ -173,7 +173,10 @@ StatusCode hm_IntKeyAddEntry(Hm_IntKey *hm, i64 key, void *val,
     entry_index = structure[i]; // Can never be invalid index.
     // Key already exists in the hm.
     if (entries[entry_index].key == key) {
-      if (overwrite) {
+      if (mode == HM_ADD_FAIL) {
+        STATUS_LOG(FAILURE, "Duplicate key found in failover mode.");
+        return FAILURE;
+      } else if (mode == HM_ADD_OVERWRITE) {
         entries[entry_index].val = val;
       }
       return SUCCESS;

@@ -43,5 +43,6 @@ void status_Log(StatusCode code, const char *file_name, const char *func_name,
 
   pthread_mutex_lock(&log_mutex);
   fputs(log, stdout);
+  fflush(stdout);
   pthread_mutex_unlock(&log_mutex);
 }

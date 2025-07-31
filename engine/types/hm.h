@@ -9,11 +9,13 @@ extern "C" {
 
 typedef struct __HmIntKey Hm_IntKey;
 
+typedef enum { HM_ADD_OVERWRITE, HM_ADD_FAIL, HM_ADD_PRESERVE } HmAddModes;
+
 extern Hm_IntKey *hm_IntKeyCreate(void);
 extern StatusCode hm_IntKeyDelete(Hm_IntKey *hm,
                                   StatusCode (*val_delete_callback)(void *val));
 extern StatusCode hm_IntKeyAddEntry(Hm_IntKey *hm, i64 key, void *val,
-                                    bool overwrite);
+                                    HmAddModes mode);
 extern void *hm_IntKeyFetchEntry(const Hm_IntKey *hm, i64 key);
 extern StatusCode
 hm_IntKeyDeleteEntry(Hm_IntKey *hm, i64 key,

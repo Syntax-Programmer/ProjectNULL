@@ -18,6 +18,8 @@ extern StatusCode arr_VectorGet(const Vector *arr, u64 i, void *dest);
 extern StatusCode arr_VectorSet(Vector *arr, u64 i, const void *data);
 extern StatusCode arr_VectorPush(Vector *arr, const void *data,
                                  u64 (*grow_callback)(u64 old_cap));
+StatusCode arr_VectorPushEmpty(Vector *arr, u64 (*grow_callback)(u64 old_cap),
+                               bool memset_zero);
 extern StatusCode arr_VectorPop(Vector *arr, void *dest);
 extern u64 arr_VectorLen(const Vector *arr);
 extern StatusCode arr_VectorFit(Vector *arr);

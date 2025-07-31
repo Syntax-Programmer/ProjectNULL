@@ -5,10 +5,10 @@
 /* ----  VECTOR  ---- */
 
 struct __Vector {
-  void *mem;
   u64 cap;
   u64 len;
   u64 elem_size;
+  void *mem;
 };
 
 Vector *arr_VectorCreate(u64 elem_size) {
@@ -19,12 +19,11 @@ Vector *arr_VectorCustomCreate(u64 elem_size, u64 cap) {
   Vector *arr = malloc(sizeof(Vector));
   MEM_ALLOC_FAILURE_NO_CLEANUP_ROUTINE(arr, NULL);
 
-  arr->mem = malloc(cap * elem_size);
+  arr->mem = malloc(elem_size * cap);
   IF_NULL(arr->mem) {
     arr_VectorDelete(arr);
     MEM_ALLOC_FAILURE_SUB_ROUTINE(arr->mem, NULL);
   }
-
   arr->len = 0;
   arr->elem_size = elem_size;
   arr->cap = cap;
@@ -35,7 +34,9 @@ Vector *arr_VectorCustomCreate(u64 elem_size, u64 cap) {
 StatusCode arr_VectorDelete(Vector *arr) {
   NULL_FUNC_ARG_ROUTINE(arr, NULL_EXCEPTION);
 
-  free(arr->mem);
+  if (arr->mem) {
+    free(arr->mem);
+  }
   free(arr);
 
   return SUCCESS;
@@ -92,6 +93,32 @@ StatusCode arr_VectorPush(Vector *arr, const void *data,
 
   memcpy(MEM_OFFSET(arr->mem, (arr->len++) * arr->elem_size), data,
          arr->elem_size);
+
+  return SUCCESS;
+}
+
+StatusCode arr_VectorPushEmpty(Vector *arr, u64 (*grow_callback)(u64 old_cap),
+                               bool memset_zero) {
+  NULL_FUNC_ARG_ROUTINE(arr, NULL_EXCEPTION);
+
+  if (arr->len == arr->cap) {
+    u64 new_cap = (grow_callback) ? grow_callback(arr->cap) : arr->cap * 2;
+    if (new_cap < arr->cap) {
+      STATUS_LOG(WARNING, "Cannot grow vector, faulty grow callback. Default "
+                          "grow strat to be used.");
+      new_cap = arr->cap * 2;
+    }
+    void *new_mem = realloc(arr->mem, new_cap * arr->elem_size);
+    MEM_ALLOC_FAILURE_NO_CLEANUP_ROUTINE(new_mem, CREATION_FAILURE);
+
+    arr->mem = new_mem;
+    arr->cap = new_cap;
+  }
+
+  if (memset_zero) {
+    memset(MEM_OFFSET(arr->mem, (arr->len++) * arr->elem_size), 0,
+           arr->elem_size);
+  }
 
   return SUCCESS;
 }
@@ -163,21 +190,23 @@ StatusCode arr_VectorForEach(Vector *arr,
 /* ----  BUFFER ARRAY  ---- */
 
 struct __BuffArr {
-  void *mem;
   u64 cap;
   u64 elem_size;
+  void *mem;
 };
 
 BuffArr *arr_BuffArrCreate(u64 cap, u64 elem_size) {
+  void *ptr = calloc(1, sizeof(BuffArr) + (cap * elem_size));
+  MEM_ALLOC_FAILURE_NO_CLEANUP_ROUTINE(ptr, NULL);
+
   BuffArr *arr = malloc(sizeof(BuffArr));
   MEM_ALLOC_FAILURE_NO_CLEANUP_ROUTINE(arr, NULL);
 
-  arr->mem = calloc(cap, elem_size);
+  arr->mem = arr->mem = malloc(elem_size * cap);
   IF_NULL(arr->mem) {
     arr_BuffArrDelete(arr);
     MEM_ALLOC_FAILURE_SUB_ROUTINE(arr->mem, NULL);
   }
-
   arr->elem_size = elem_size;
   arr->cap = cap;
 
@@ -187,7 +216,9 @@ BuffArr *arr_BuffArrCreate(u64 cap, u64 elem_size) {
 StatusCode arr_BuffArrDelete(BuffArr *arr) {
   NULL_FUNC_ARG_ROUTINE(arr, NULL_EXCEPTION);
 
-  free(arr->mem);
+  if (arr->mem) {
+    free(arr->mem);
+  }
   free(arr);
 
   return SUCCESS;
