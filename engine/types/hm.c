@@ -23,7 +23,7 @@
   perturb >>= PERTURB_SHIFT;
 
 typedef struct {
-  i64 key;
+  u64 key;
   void *val;
   u64 hash;
 } Hm_IntKeyEntries;
@@ -47,15 +47,15 @@ struct __HmIntKey {
   Vector *entries;
 };
 
-static inline u64 SplitMix64Hasher(i64 x);
+static inline u64 SplitMix64Hasher(u64 x);
 static u64 GrowHmStructureCallback(u64 old_cap);
 static u64 GrowHmEntriesCallback(u64 old_cap);
 static StatusCode GrowHmIntKeyStructure(Hm_IntKey *hm);
-static StatusCode FetchHmIntKeyStructureEntryIndices(Hm_IntKey *hm, i64 key,
+static StatusCode FetchHmIntKeyStructureEntryIndices(Hm_IntKey *hm, u64 key,
                                                      u64 *pStructure_i,
                                                      u64 *pEntry_i);
 
-static inline u64 SplitMix64Hasher(i64 x) {
+static inline u64 SplitMix64Hasher(u64 x) {
   x += 0x9e3779b97f4a7c15;
   x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9;
   x = (x ^ (x >> 27)) * 0x94d049bb133111eb;
@@ -144,7 +144,7 @@ static StatusCode GrowHmIntKeyStructure(Hm_IntKey *hm) {
   return SUCCESS;
 }
 
-StatusCode hm_IntKeyAddEntry(Hm_IntKey *hm, i64 key, void *val,
+StatusCode hm_IntKeyAddEntry(Hm_IntKey *hm, u64 key, void *val,
                              HmAddModes mode) {
   NULL_FUNC_ARG_ROUTINE(hm, NULL_EXCEPTION);
 
@@ -196,7 +196,7 @@ StatusCode hm_IntKeyAddEntry(Hm_IntKey *hm, i64 key, void *val,
   return SUCCESS;
 }
 
-void *hm_IntKeyFetchEntry(const Hm_IntKey *hm, i64 key) {
+void *hm_IntKeyFetchEntry(const Hm_IntKey *hm, u64 key) {
   NULL_FUNC_ARG_ROUTINE(hm, NULL);
 
   u64 mask = arr_BuffArrCap(hm->structure) - 1;
@@ -220,7 +220,7 @@ void *hm_IntKeyFetchEntry(const Hm_IntKey *hm, i64 key) {
   return NULL;
 }
 
-static StatusCode FetchHmIntKeyStructureEntryIndices(Hm_IntKey *hm, i64 key,
+static StatusCode FetchHmIntKeyStructureEntryIndices(Hm_IntKey *hm, u64 key,
                                                      u64 *pStructure_i,
                                                      u64 *pEntry_i) {
   NULL_FUNC_ARG_ROUTINE(hm, NULL_EXCEPTION);
@@ -251,7 +251,7 @@ static StatusCode FetchHmIntKeyStructureEntryIndices(Hm_IntKey *hm, i64 key,
   return OUT_OF_BOUNDS_ACCESS;
 }
 
-StatusCode hm_IntKeyDeleteEntry(Hm_IntKey *hm, i64 key,
+StatusCode hm_IntKeyDeleteEntry(Hm_IntKey *hm, u64 key,
                                 StatusCode (*val_delete_callback)(void *val)) {
   NULL_FUNC_ARG_ROUTINE(hm, NULL_EXCEPTION);
 
@@ -296,7 +296,7 @@ u64 hm_IntKeyGetLen(const Hm_IntKey *hm) {
 }
 
 StatusCode hm_IntKeyForEach(Hm_IntKey *hm,
-                            void (*foreach_callback)(const i64 key,
+                            void (*foreach_callback)(const u64 key,
                                                      void *val)) {
   NULL_FUNC_ARG_ROUTINE(hm, NULL_EXCEPTION);
   NULL_FUNC_ARG_ROUTINE(foreach_callback, NULL_EXCEPTION);

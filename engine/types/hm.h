@@ -14,15 +14,15 @@ typedef enum { HM_ADD_OVERWRITE, HM_ADD_FAIL, HM_ADD_PRESERVE } HmAddModes;
 extern Hm_IntKey *hm_IntKeyCreate(void);
 extern StatusCode hm_IntKeyDelete(Hm_IntKey *hm,
                                   StatusCode (*val_delete_callback)(void *val));
-extern StatusCode hm_IntKeyAddEntry(Hm_IntKey *hm, i64 key, void *val,
+extern StatusCode hm_IntKeyAddEntry(Hm_IntKey *hm, u64 key, void *val,
                                     HmAddModes mode);
-extern void *hm_IntKeyFetchEntry(const Hm_IntKey *hm, i64 key);
+extern void *hm_IntKeyFetchEntry(const Hm_IntKey *hm, u64 key);
 extern StatusCode
-hm_IntKeyDeleteEntry(Hm_IntKey *hm, i64 key,
+hm_IntKeyDeleteEntry(Hm_IntKey *hm, u64 key,
                      StatusCode (*val_delete_callback)(void *val));
 extern u64 hm_IntKeyGetLen(const Hm_IntKey *hm);
 extern StatusCode hm_IntKeyForEach(Hm_IntKey *hm,
-                                   void (*foreach_callback)(const i64 key,
+                                   void (*foreach_callback)(const u64 key,
                                                             void *val));
 
 #ifdef __cplusplus
