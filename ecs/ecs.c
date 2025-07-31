@@ -76,7 +76,7 @@ static EcsState *ecs_state = NULL;
 
 /* ----  UTILITY FUNCTIONS   ---- */
 
-static u64 PropTableIndex(EntityProps prop);
+static u64 PropsMetadataTableIndex(EntityProps prop);
 static StatusCode PopulateBuiltinPropsMetadata(void);
 
 /* ----  LAYOUT RELATED FUNCTIONS  ---- */
@@ -87,9 +87,9 @@ static StatusCode LayoutDeleteCallback(void *layout);
 
 /* ----  UTILITY FUNCTIONS   ---- */
 
-static u64 PropTableIndex(EntityProps prop) {
+static u64 PropsMetadataTableIndex(EntityProps prop) {
   if (prop == 0)
-    return -1; //  Undefined for zero
+    return INVALID_INDEX; //  Undefined for zero
 
 #if defined(__GNUC__) || defined(__clang__)
   return __builtin_ctzll(prop);
@@ -134,6 +134,10 @@ StatusCode ecs_AttachProp(EntityProps *props, EntityProps to_attach) {
   CHECK_VALID_ECS_STATE(NULL_EXCEPTION);
   NULL_FUNC_ARG_ROUTINE(props, NULL_EXCEPTION);
 
+  if (PropsMetadataTableIndex(to_attach) == INVALID_INDEX) {
+    STATUS_LOG(FAILURE, "Invalid prop: %ld given to attach", to_attach);
+  }
+
   SET_FLAG(*props, to_attach);
 
   return SUCCESS;
@@ -142,6 +146,10 @@ StatusCode ecs_AttachProp(EntityProps *props, EntityProps to_attach) {
 StatusCode ecs_DetachProp(EntityProps *props, EntityProps to_detach) {
   CHECK_VALID_ECS_STATE(NULL_EXCEPTION);
   NULL_FUNC_ARG_ROUTINE(props, NULL_EXCEPTION);
+
+  if (PropsMetadataTableIndex(to_detach) == INVALID_INDEX) {
+    STATUS_LOG(FAILURE, "Invalid prop: %ld given to detach", to_detach);
+  }
 
   CLEAR_FLAG(*props, to_detach);
 
@@ -205,8 +213,9 @@ EntityLayout *ecs_EntityLayoutCreate(EntityProps props) {
     // Extract the lowest most set bit.
     EntityProps prop = props & -props;
 
-    u64 index = PropTableIndex(prop);
-    if (index == (u64)-1) {
+    u64 index = PropsMetadataTableIndex(prop);
+    if (index == INVALID_INDEX) {
+      // With the current approach this shall never execute.
       STATUS_LOG(FAILURE, "Invalid props provided to create layout for.");
       return NULL;
     }
@@ -226,8 +235,8 @@ EntityLayout *ecs_EntityLayoutCreate(EntityProps props) {
    * We create the array with props_struct_size * CHUNK_ARR_CAP, but each entry
    * in itself be multiple arrays of capacity CHUNK_ARR_CAP.
    *
-   * The arrangenent will be like:
-   * data-> [[Index0: [comp1_arr][comp2_arr]...[compn_arr]], [Index1: ...]]
+   * The arrangement will be like:
+   * data-> [[Index0: [comp1_arr][comp2_arr]...[comp-n_arr]], [Index1: ...]]
    *
    * The props_struct_size * CHUNK_ARR_CAP is just a size calculation and
    * doesn't reflect internal memory structure.
@@ -307,7 +316,7 @@ StatusCode ecs_DeleteEntityFromLayout(Entity *entity) {
   CHECK_VALID_ECS_STATE(NULL_EXCEPTION);
   NULL_FUNC_ARG_ROUTINE(entity, NULL_EXCEPTION);
 
-  if (!entity->layout || entity->index == -1) {
+  if (!entity->layout || entity->index == INVALID_INDEX) {
     STATUS_LOG(FAILURE, "Cannot delete an already deleted entity.");
   }
 
@@ -322,7 +331,7 @@ StatusCode ecs_DeleteEntityFromLayout(Entity *entity) {
   }
 
   entity->layout = NULL;
-  entity->index = -1;
+  entity->index = INVALID_INDEX;
 
   return SUCCESS;
 }

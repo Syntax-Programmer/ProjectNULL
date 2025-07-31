@@ -143,7 +143,7 @@ StatusCode arr_VectorPop(Vector *arr, void *dest) {
 }
 
 u64 arr_VectorLen(const Vector *arr) {
-  NULL_FUNC_ARG_ROUTINE(arr, -1);
+  NULL_FUNC_ARG_ROUTINE(arr, INVALID_INDEX);
 
   return arr->len;
 }
