@@ -316,14 +316,15 @@ StatusCode ecs_Exit(void) {
   if (!ecs_state) {
     return SUCCESS;
   }
-  if (ecs_state->layout_arena) {
-    mem_PoolArenaDelete(ecs_state->layout_arena);
-  }
+
   if (ecs_state->entity_arena) {
     mem_PoolArenaDelete(ecs_state->entity_arena);
   }
   if (ecs_state->ecs) {
-    // We don't pass val delete callback, as we purged their pools.
+    if (ecs_state->layout_arena) {
+      hm_IntKeyDelete(ecs_state->ecs, LayoutDeleteCallback);
+      mem_PoolArenaDelete(ecs_state->layout_arena);
+    }
     hm_IntKeyDelete(ecs_state->ecs, NULL);
   }
   if (ecs_state->builtin_props_metadata) {
