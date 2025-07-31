@@ -12,6 +12,13 @@ typedef struct __Entity Entity;
 
 typedef u64 EntityProps;
 #define BUILTIN_PROPS_COUNT (64)
+#define NO_PROPS (0)
+
+/* ----  PROPS RELATED FUNCTIONS  ---- */
+
+extern StatusCode ecs_AttachProp(EntityProps *props, EntityProps to_attach);
+extern StatusCode ecs_DetachProp(EntityProps *props, EntityProps to_detach);
+extern StatusCode ecs_ClearProps(EntityProps *props);
 
 /* ----  LAYOUT RELATED FUNCTIONS  ---- */
 

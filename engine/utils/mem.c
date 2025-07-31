@@ -92,8 +92,6 @@ struct __PoolArena {
 static StatusCode AddPoolMem(PoolArena *arena);
 
 static StatusCode AddPoolMem(PoolArena *arena) {
-  NULL_FUNC_ARG_ROUTINE(arena, NULL_EXCEPTION);
-
   MemBlock *block = malloc(sizeof(MemBlock));
   MEM_ALLOC_FAILURE_NO_CLEANUP_ROUTINE(block, CREATION_FAILURE);
 

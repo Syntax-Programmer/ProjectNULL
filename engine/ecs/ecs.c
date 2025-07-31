@@ -2,7 +2,6 @@
 #include "../types/array.h"
 #include "../types/hm.h"
 #include "../utils/mem.h"
-#include <stdbool.h>
 
 #if defined(_MSC_VER)
 #include <intrin.h>
@@ -28,8 +27,13 @@ struct __Entity {
 };
 
 typedef struct {
-  u64 size[BUILTIN_PROPS_COUNT];
-  bool is_serializable[BUILTIN_PROPS_COUNT];
+  /*
+   * Future plan: When users make their own props, they will register prop's
+   * size and other metadata here so that the ecs can handle everything.
+   *
+   * Currently it will hold builting props' metadata.
+   */
+  Vector *size;
 } PropsMetadata;
 
 typedef struct {
@@ -107,7 +111,6 @@ static u64 PropTableIndex(EntityProps prop) {
 }
 
 static StatusCode PopulateBuiltinPropsMetadata(void) {
-  CHECK_VALID_ECS_STATE(NULL_EXCEPTION);
   /*
    * TODO:
    * builtin_props_metadata.size[PROP1] = sizeof(Prop1)
@@ -127,9 +130,32 @@ static StatusCode PopulateBuiltinPropsMetadata(void) {
  * representation changes.
  */
 
-StatusCode ecs_AttachProp(EntityProps *props, EntityProps to_attach);
-StatusCode ecs_DetachProp(EntityProps *props, EntityProps to_remove);
-StatusCode ecs_ClearProps(EntityProps *props);
+StatusCode ecs_AttachProp(EntityProps *props, EntityProps to_attach) {
+  CHECK_VALID_ECS_STATE(NULL_EXCEPTION);
+  NULL_FUNC_ARG_ROUTINE(props, NULL_EXCEPTION);
+
+  SET_FLAG(*props, to_attach);
+
+  return SUCCESS;
+}
+
+StatusCode ecs_DetachProp(EntityProps *props, EntityProps to_detach) {
+  CHECK_VALID_ECS_STATE(NULL_EXCEPTION);
+  NULL_FUNC_ARG_ROUTINE(props, NULL_EXCEPTION);
+
+  CLEAR_FLAG(*props, to_detach);
+
+  return SUCCESS;
+}
+
+StatusCode ecs_ClearProps(EntityProps *props) {
+  CHECK_VALID_ECS_STATE(NULL_EXCEPTION);
+  NULL_FUNC_ARG_ROUTINE(props, NULL_EXCEPTION);
+
+  *props = NO_PROPS;
+
+  return SUCCESS;
+}
 
 /* ----  LAYOUT RELATED FUNCTIONS  ---- */
 
@@ -159,7 +185,7 @@ static StatusCode AddLayoutMem(EntityLayout *layout) {
 EntityLayout *ecs_EntityLayoutCreate(EntityProps props) {
   CHECK_VALID_ECS_STATE(NULL);
 
-  if (props == 0) {
+  if (props == NO_PROPS) {
     STATUS_LOG(FAILURE, "Cannot create a layout with no components.");
     return NULL;
   }
@@ -169,24 +195,43 @@ EntityLayout *ecs_EntityLayoutCreate(EntityProps props) {
     return layout;
   }
 
-  layout = mem_PoolArenaCalloc(ecs_state->layout_arena);
-  MEM_ALLOC_FAILURE_NO_CLEANUP_ROUTINE(layout, NULL);
+  u64 original_props = props;
 
-  layout->props = props;
   // Size of one of each attached components.
   u64 props_struct_size = 0;
+  u64 *size_raw_arr = arr_VectorRaw(ecs_state->builtin_props_metadata->size);
   // This lets us decompose prop bitflags into individual props.
   while (props) {
-    // Extract the lowest most set bit.ModSysProps
+    // Extract the lowest most set bit.
     EntityProps prop = props & -props;
 
     u64 index = PropTableIndex(prop);
-    props_struct_size += ecs_state->builtin_props_metadata->size[index];
+    if (index == (u64)-1) {
+      STATUS_LOG(FAILURE, "Invalid props provided to create layout for.");
+      return NULL;
+    }
+    props_struct_size += size_raw_arr[index];
 
     // Clearing the lowest set bit from the props;
     props ^= prop;
   }
 
+  layout = mem_PoolArenaCalloc(ecs_state->layout_arena);
+  MEM_ALLOC_FAILURE_NO_CLEANUP_ROUTINE(layout, NULL);
+
+  // Since the props arg will be destroyed in size calculation.
+  layout->props = original_props;
+
+  /*
+   * We create the array with props_struct_size * CHUNK_ARR_CAP, but each entry
+   * in itself be multiple arrays of capacity CHUNK_ARR_CAP.
+   *
+   * The arrangenent will be like:
+   * data-> [[Index0: [comp1_arr][comp2_arr]...[compn_arr]], [Index1: ...]]
+   *
+   * The props_struct_size * CHUNK_ARR_CAP is just a size calculation and
+   * doesn't reflect internal memory structure.
+   */
   layout->data = arr_VectorCustomCreate(props_struct_size * CHUNK_ARR_CAP, 1);
   IF_NULL(layout->data) {
     LayoutDeleteCallback(layout);
@@ -216,9 +261,6 @@ EntityLayout *ecs_EntityLayoutCreate(EntityProps props) {
 }
 
 static StatusCode LayoutDeleteCallback(void *layout) {
-  CHECK_VALID_ECS_STATE(NULL_EXCEPTION);
-  NULL_FUNC_ARG_ROUTINE(layout, NULL_EXCEPTION);
-
   EntityLayout *to_delete = layout;
   if (to_delete->data) {
     arr_VectorDelete(to_delete->data);
@@ -232,6 +274,9 @@ static StatusCode LayoutDeleteCallback(void *layout) {
 }
 
 StatusCode ecs_EntityLayoutDelete(EntityLayout *layout) {
+  CHECK_VALID_ECS_STATE(NULL_EXCEPTION);
+  NULL_FUNC_ARG_ROUTINE(layout, NULL_EXCEPTION);
+
   return hm_IntKeyDeleteEntry(ecs_state->ecs, layout->props,
                               LayoutDeleteCallback);
 }

@@ -119,8 +119,6 @@ static u64 GrowHmEntriesCallback(u64 old_cap) {
 }
 
 static StatusCode GrowHmIntKeyStructure(Hm_IntKey *hm) {
-  NULL_FUNC_ARG_ROUTINE(hm, NULL_EXCEPTION);
-
   IF_FUNC_FAILED(arr_BuffArrGrow(hm->structure, GrowHmStructureCallback)) {
     STATUS_LOG(FAILURE, "Cannot grow hashmap.");
     return FAILURE;
@@ -223,10 +221,6 @@ void *hm_IntKeyFetchEntry(const Hm_IntKey *hm, u64 key) {
 static StatusCode FetchHmIntKeyStructureEntryIndices(Hm_IntKey *hm, u64 key,
                                                      u64 *pStructure_i,
                                                      u64 *pEntry_i) {
-  NULL_FUNC_ARG_ROUTINE(hm, NULL_EXCEPTION);
-  NULL_FUNC_ARG_ROUTINE(pStructure_i, NULL_EXCEPTION);
-  NULL_FUNC_ARG_ROUTINE(pEntry_i, NULL_EXCEPTION);
-
   *pStructure_i = *pEntry_i = EMPTY_INDEX;
 
   u64 mask = arr_BuffArrCap(hm->structure) - 1;
