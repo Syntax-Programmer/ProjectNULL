@@ -12,7 +12,7 @@ typedef struct __Entity Entity;
 
 typedef u64 EntityProps;
 #define BUILTIN_PROPS_COUNT (64)
-#define NO_PROPS (0)
+#define ENTITY_NO_PROPS (0)
 
 /* ----  PROPS RELATED FUNCTIONS  ---- */
 

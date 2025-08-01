@@ -214,7 +214,7 @@ void *hm_IntKeyFetchEntry(const Hm_IntKey *hm, u64 key) {
   }
 
   STATUS_LOG(OUT_OF_BOUNDS_ACCESS,
-             "Cannot fetch a key that doesn't exist in the hm: %ld", key);
+             "Cannot fetch a key that doesn't exist in the hm: %zu", key);
   return NULL;
 }
 
@@ -259,7 +259,7 @@ StatusCode hm_IntKeyDeleteEntry(Hm_IntKey *hm, u64 key,
   FetchHmIntKeyStructureEntryIndices(hm, key, &key_structure_i, &key_entry_i);
   if (key_structure_i == EMPTY_INDEX) {
     STATUS_LOG(OUT_OF_BOUNDS_ACCESS,
-               "Cannot delete a key that doesn't exist in the hm: %ld", key);
+               "Cannot delete a key that doesn't exist in the hm: %zu", key);
     return OUT_OF_BOUNDS_ACCESS;
   }
   FetchHmIntKeyStructureEntryIndices(hm, entries[hm_len - 1].key,

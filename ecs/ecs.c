@@ -1,7 +1,6 @@
 #include "ecs.h"
-#include "../types/array.h"
-#include "../types/hm.h"
 #include "../utils/mem.h"
+#include "props/props_manager.h"
 
 #if defined(_MSC_VER)
 #include <intrin.h>
@@ -32,6 +31,9 @@ typedef struct {
    * size and other metadata here so that the ecs can handle everything.
    *
    * Currently it will hold builting props' metadata.
+   *
+   * Each builting prop will have a register callback that will be provided to
+   * the ecs, so that the prop can be registered here.
    */
   Vector *size;
 } PropsMetadata;
@@ -172,7 +174,7 @@ StatusCode ecs_AttachProp(EntityProps *props, EntityProps to_attach) {
   NULL_FUNC_ARG_ROUTINE(props, NULL_EXCEPTION);
 
   if (PropsMetadataTableIndex(to_attach) == INVALID_INDEX) {
-    STATUS_LOG(FAILURE, "Invalid prop: %ld given to attach", to_attach);
+    STATUS_LOG(FAILURE, "Invalid prop: %zu given to attach", to_attach);
   }
 
   SET_FLAG(*props, to_attach);
@@ -185,7 +187,7 @@ StatusCode ecs_DetachProp(EntityProps *props, EntityProps to_detach) {
   NULL_FUNC_ARG_ROUTINE(props, NULL_EXCEPTION);
 
   if (PropsMetadataTableIndex(to_detach) == INVALID_INDEX) {
-    STATUS_LOG(FAILURE, "Invalid prop: %ld given to detach", to_detach);
+    STATUS_LOG(FAILURE, "Invalid prop: %zu given to detach", to_detach);
   }
 
   CLEAR_FLAG(*props, to_detach);
@@ -197,7 +199,7 @@ StatusCode ecs_ClearProps(EntityProps *props) {
   CHECK_VALID_ECS_STATE(NULL_EXCEPTION);
   NULL_FUNC_ARG_ROUTINE(props, NULL_EXCEPTION);
 
-  *props = NO_PROPS;
+  *props = ENTITY_NO_PROPS;
 
   return SUCCESS;
 }
@@ -230,7 +232,7 @@ static StatusCode AddLayoutMem(EntityLayout *layout) {
 EntityLayout *ecs_EntityLayoutCreate(EntityProps props) {
   CHECK_VALID_ECS_STATE(NULL);
 
-  if (props == NO_PROPS) {
+  if (props == ENTITY_NO_PROPS) {
     STATUS_LOG(FAILURE, "Cannot create a layout with no components.");
     return NULL;
   }
@@ -405,9 +407,7 @@ StatusCode ecs_Init(void) {
 }
 
 StatusCode ecs_Exit(void) {
-  IF_NULL(ecs_state) {
-    return SUCCESS;
-  }
+  IF_NULL(ecs_state) { return SUCCESS; }
 
   if (ecs_state->entity_arena) {
     mem_PoolArenaDelete(ecs_state->entity_arena);
