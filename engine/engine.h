@@ -4,7 +4,7 @@
 extern "C" {
 #endif
 
-#include "../ecs/ecs.h"
+#include "../utils/status.h"
 
 StatusCode engine_Init(void);
 StatusCode engine_Exit(void);

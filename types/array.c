@@ -116,9 +116,9 @@ StatusCode arr_VectorPushEmpty(Vector *arr, u64 (*grow_callback)(u64 old_cap),
   }
 
   if (memset_zero) {
-    memset(MEM_OFFSET(arr->mem, (arr->len++) * arr->elem_size), 0,
-           arr->elem_size);
+    memset(MEM_OFFSET(arr->mem, arr->len * arr->elem_size), 0, arr->elem_size);
   }
+  arr->len++;
 
   return SUCCESS;
 }
@@ -195,7 +195,7 @@ struct __BuffArr {
   void *mem;
 };
 
-BuffArr *arr_BuffArrCreate(u64 cap, u64 elem_size) {
+BuffArr *arr_BuffArrCreate(u64 elem_size, u64 cap) {
   BuffArr *arr = malloc(sizeof(BuffArr));
   MEM_ALLOC_FAILURE_NO_CLEANUP_ROUTINE(arr, NULL);
 
@@ -204,6 +204,10 @@ BuffArr *arr_BuffArrCreate(u64 cap, u64 elem_size) {
     arr_BuffArrDelete(arr);
     MEM_ALLOC_FAILURE_SUB_ROUTINE(arr->mem, NULL);
   }
+
+  // zeroes out the array.
+  memset(arr->mem, 0, elem_size * cap);
+
   arr->elem_size = elem_size;
   arr->cap = cap;
 
@@ -245,8 +249,9 @@ StatusCode arr_BuffArrSet(BuffArr *arr, u64 i, const void *data) {
                "Cannot access buff array beyond its cap.");
     return OUT_OF_BOUNDS_ACCESS;
   }
-
+  printf("efhwefjw\n");
   memcpy(MEM_OFFSET(arr->mem, i * arr->elem_size), data, arr->elem_size);
+  printf("efhwefjw\n");
 
   return SUCCESS;
 }
@@ -257,12 +262,34 @@ u64 arr_BuffArrCap(const BuffArr *arr) {
   return arr->cap;
 }
 
-StatusCode arr_BuffArrGrow(BuffArr *arr, u64 (*grow_callback)(u64 old_cap)) {
+StatusCode arr_BuffArrGrow(BuffArr *arr, u64 new_cap) {
+  NULL_FUNC_ARG_ROUTINE(arr, NULL_EXCEPTION);
+
+  if (arr->cap >= new_cap) {
+    STATUS_LOG(
+        FAILURE,
+        "Cannot grow buff array, new cap less than or equal to current cap.");
+    return FAILURE;
+  }
+
+  void *new_mem = realloc(arr->mem, new_cap * arr->elem_size);
+  MEM_ALLOC_FAILURE_NO_CLEANUP_ROUTINE(new_mem, CREATION_FAILURE);
+
+  arr->mem = new_mem;
+  memset(MEM_OFFSET(arr->mem, arr->elem_size * arr->cap), 0,
+         (new_cap - arr->cap) * arr->elem_size);
+  arr->cap = new_cap;
+
+  return SUCCESS;
+}
+
+StatusCode arr_BuffArrGrowWCallback(BuffArr *arr,
+                                    u64 (*grow_callback)(u64 old_cap)) {
   NULL_FUNC_ARG_ROUTINE(arr, NULL_EXCEPTION);
 
   u64 new_cap = (grow_callback) ? grow_callback(arr->cap) : arr->cap * 2;
   if (new_cap < arr->cap) {
-    STATUS_LOG(WARNING, "Cannot grow vector, faulty grow callback. Default "
+    STATUS_LOG(WARNING, "Cannot grow buff array, faulty grow callback. Default "
                         "grow strat to be used.");
     new_cap = arr->cap * 2;
   }
@@ -270,6 +297,8 @@ StatusCode arr_BuffArrGrow(BuffArr *arr, u64 (*grow_callback)(u64 old_cap)) {
   MEM_ALLOC_FAILURE_NO_CLEANUP_ROUTINE(new_mem, CREATION_FAILURE);
 
   arr->mem = new_mem;
+  memset(MEM_OFFSET(arr->mem, arr->elem_size * arr->cap), 0,
+         (new_cap - arr->cap) * arr->elem_size);
   arr->cap = new_cap;
 
   return SUCCESS;
@@ -299,4 +328,15 @@ StatusCode arr_BuffArrForEach(BuffArr *arr,
   }
 
   return SUCCESS;
+}
+
+bool arr_BuffArrCmp(const BuffArr *arr1, const BuffArr *arr2) {
+  NULL_FUNC_ARG_ROUTINE(arr1, false);
+  NULL_FUNC_ARG_ROUTINE(arr2, false);
+
+  if (arr1->elem_size != arr2->elem_size || arr1->cap != arr2->cap) {
+    return false;
+  }
+
+  return memcmp(arr1->mem, arr2->mem, arr1->elem_size * arr1->cap) == 0;
 }
