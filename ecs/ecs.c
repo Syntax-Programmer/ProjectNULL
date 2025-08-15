@@ -10,6 +10,7 @@
 #endif
 
 #define CHUNK_ARR_CAP (8)
+#define U64_BIT_COUNT (sizeof(u64) * 8)
 
 struct __PropsSignature {
   // Its an array of u64, where each u64 holds 64 props as for of bitset.
@@ -91,6 +92,7 @@ static StatusCode LayoutDeleteCallback(void *layout);
 /* ----  UTILITY FUNCTIONS   ---- */
 
 static u64 PropsMetadataTableIndex(u64 prop_bitset, u64 int_index) {
+  printf("wewefwef\n");
   if (prop_bitset == 0) {
     return INVALID_INDEX; // Undefined for zero
   }
@@ -115,7 +117,10 @@ static u64 PropsMetadataTableIndex(u64 prop_bitset, u64 int_index) {
   table_index = n;
 #endif
 
-  return bit_position + (int_index * 64);
+  printf("%zu %zu %zu\n", prop_bitset, int_index,
+         bit_position + (int_index * U64_BIT_COUNT));
+
+  return bit_position + (int_index * U64_BIT_COUNT);
 }
 
 /* ----  PROPS METADATA RELATED FUNCTIONS  ---- */
@@ -147,8 +152,6 @@ static StatusCode PopulateBuiltinPropsMetadata(void) {
 }
 
 /* ----  PROP RELATED FUNCTIONS  ---- */
-
-#define U64_BIT_COUNT (sizeof(u64) * 8)
 
 PropId ecs_PropIdCreate(u64 prop_struct_size) {
   CHECK_VALID_ECS_STATE(INVALID_PROP_ID);
@@ -312,7 +315,7 @@ static StatusCode PropSignatureDeleteCallback(void *signature) {
 
 /* ----  LAYOUT RELATED FUNCTIONS  ---- */
 
-static u64 LayoutDataGrowCallback(u64 size) { return size++; }
+static u64 LayoutDataGrowCallback(u64 size) { return ++size; }
 
 static StatusCode AddLayoutMem(Layout *layout) {
   // Get curr max index before pushing new. Will account for next chunk later.
@@ -365,7 +368,7 @@ Layout *ecs_LayoutCreate(PropsSignature *signature) {
 
   for (u64 i = 0; i < prop_signature_cap; i++) {
     u64 bitset_int = prop_signature_raw[i];
-
+    printf("int: %zu\n", bitset_int);
     // This lets us decompose prop bitflags into individual props.
     while (bitset_int) {
       // Extract the lowest most set bit.
@@ -380,6 +383,8 @@ Layout *ecs_LayoutCreate(PropsSignature *signature) {
       bitset_int ^= prop_bitset;
     }
   }
+
+  printf("%zu\n", props_struct_size);
 
   layout = mem_PoolArenaCalloc(ecs_state->layout_arena);
   MEM_ALLOC_FAILURE_NO_CLEANUP_ROUTINE(layout, NULL);

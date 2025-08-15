@@ -249,9 +249,7 @@ StatusCode arr_BuffArrSet(BuffArr *arr, u64 i, const void *data) {
                "Cannot access buff array beyond its cap.");
     return OUT_OF_BOUNDS_ACCESS;
   }
-  printf("efhwefjw\n");
   memcpy(MEM_OFFSET(arr->mem, i * arr->elem_size), data, arr->elem_size);
-  printf("efhwefjw\n");
 
   return SUCCESS;
 }

@@ -98,7 +98,7 @@ Hm *hm_Create(u64 (*hash_func)(const void *key),
   hm->key_delete_callback = key_delete_callback;
   hm->val_delete_callback = val_delete_callback;
 
-  hm->structure = arr_BuffArrCreate(MIN_HASH_BUCKET_SIZE, sizeof(u64));
+  hm->structure = arr_BuffArrCreate(sizeof(u64), MIN_HASH_BUCKET_SIZE);
   IF_NULL(hm->structure) {
     free(hm);
     MEM_ALLOC_FAILURE_SUB_ROUTINE(hm->mem, NULL);
@@ -229,9 +229,7 @@ StatusCode hm_AddEntry(Hm *hm, void *key, void *val, HmAddModes mode) {
     return FAILURE;
   }
 
-  printf("efhwefjw, %zu, %zu\n", i, hm_len);
   arr_BuffArrSet(hm->structure, i, &hm_len);
-  printf("efhwefjw\n");
 
   return SUCCESS;
 }
