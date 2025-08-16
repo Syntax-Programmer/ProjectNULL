@@ -229,7 +229,7 @@ StatusCode ecs_HandlePropIdToPropSignatures(PropsSignature *signature,
       IF_FUNC_FAILED(
           arr_BuffArrGrow(signature->id_bitset, required_signature_cap)) {
         STATUS_LOG(FAILURE, "Cannot add PropId to PropsSignature, signature "
-                            "coundn't create space to store it.");
+                            "couldn't create space to store it.");
         return FAILURE;
       }
     }
