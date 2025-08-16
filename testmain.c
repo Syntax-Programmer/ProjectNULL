@@ -1,10 +1,20 @@
 #include "ecs/ecs.h"
 #include "engine/engine.h"
+#include <sys/time.h>
+
+typedef struct {
+  u64 x[50];
+} AA;
 
 i32 main() {
+  struct timeval start, end;
+  long mtime, seconds, useconds;
+
+  gettimeofday(&start, NULL);
+
   engine_Init();
 
-  PropId id1 = ecs_PropIdCreate(sizeof(u64));
+  PropId id1 = ecs_PropIdCreate(sizeof(AA));
   PropId id2 = ecs_PropIdCreate(sizeof(void *));
 
   PropsSignature *signature = ecs_PropSignatureCreate();
@@ -30,6 +40,20 @@ i32 main() {
   ecs_LayoutDelete(layout);
 
   engine_Exit();
+
+  gettimeofday(&end, NULL);
+
+  seconds = end.tv_sec - start.tv_sec;
+  if (end.tv_usec < start.tv_usec) {
+    seconds--;
+    useconds = 1000000 + end.tv_usec - start.tv_usec;
+  } else {
+    useconds = end.tv_usec - start.tv_usec;
+  }
+
+  mtime = ((seconds) * 1000 + useconds / 1000.0) + 0.5;
+
+  printf("Execution time: %ld milliseconds\n", mtime);
 
   return 0;
 }

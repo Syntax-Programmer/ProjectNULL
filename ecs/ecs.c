@@ -92,7 +92,6 @@ static StatusCode LayoutDeleteCallback(void *layout);
 /* ----  UTILITY FUNCTIONS   ---- */
 
 static u64 PropsMetadataTableIndex(u64 prop_bitset, u64 int_index) {
-  printf("wewefwef\n");
   if (prop_bitset == 0) {
     return INVALID_INDEX; // Undefined for zero
   }
@@ -116,9 +115,6 @@ static u64 PropsMetadataTableIndex(u64 prop_bitset, u64 int_index) {
   }
   table_index = n;
 #endif
-
-  printf("%zu %zu %zu\n", prop_bitset, int_index,
-         bit_position + (int_index * U64_BIT_COUNT));
 
   return bit_position + (int_index * U64_BIT_COUNT);
 }
@@ -211,7 +207,7 @@ StatusCode ecs_HandlePropIdToPropSignatures(PropsSignature *signature,
   if (mode != PROP_SIGNATURE_ATTACH && mode != PROP_SIGNATURE_DETACH) {
     STATUS_LOG(FAILURE, "Invalid mode provided.");
   }
-  char *log_str = (mode = PROP_SIGNATURE_DETACH) ? "detach" : "attach";
+  char *log_str = (mode == PROP_SIGNATURE_DETACH) ? "detach" : "attach";
 
   u64 props_count = arr_VectorLen(ecs_state->props_metadata_table.size);
   if (id >= props_count) {
@@ -249,10 +245,9 @@ StatusCode ecs_HandlePropIdToPropSignatures(PropsSignature *signature,
                          log_str);
   if (mode == PROP_SIGNATURE_DETACH) {
     CLEAR_FLAG(bitset_raw[required_signature_cap - 1],
-               1ULL << (id % U64_BIT_COUNT));
+               1UL << (id % U64_BIT_COUNT));
   } else {
-    SET_FLAG(bitset_raw[required_signature_cap - 1],
-             1ULL << (id % U64_BIT_COUNT));
+    bitset_raw[required_signature_cap - 1] |= 1UL << (id % U64_BIT_COUNT);
   }
 
   return SUCCESS;
@@ -368,7 +363,6 @@ Layout *ecs_LayoutCreate(PropsSignature *signature) {
 
   for (u64 i = 0; i < prop_signature_cap; i++) {
     u64 bitset_int = prop_signature_raw[i];
-    printf("int: %zu\n", bitset_int);
     // This lets us decompose prop bitflags into individual props.
     while (bitset_int) {
       // Extract the lowest most set bit.
@@ -383,8 +377,6 @@ Layout *ecs_LayoutCreate(PropsSignature *signature) {
       bitset_int ^= prop_bitset;
     }
   }
-
-  printf("%zu\n", props_struct_size);
 
   layout = mem_PoolArenaCalloc(ecs_state->layout_arena);
   MEM_ALLOC_FAILURE_NO_CLEANUP_ROUTINE(layout, NULL);

@@ -36,9 +36,9 @@ typedef double f64;
 #define MEM_OFFSET(mem, offset) ((u8 *)(mem) + (offset))
 #define IS_POWER_OF_TWO(n) (((n) != 0) && (((n) & ((n) - 1)) == 0))
 
-#define SET_FLAG(var, flag) ((var) |= (flag))
-#define CLEAR_FLAG(var, flag) ((var) &= ~(flag))
-#define TOGGLE_FLAG(var, flag) ((var) ^= (flag))
+#define SET_FLAG(var, flag) (var) |= (flag)
+#define CLEAR_FLAG(var, flag) (var) &= ~(flag)
+#define TOGGLE_FLAG(var, flag) (var) ^= (flag)
 #define HAS_FLAG(var, flag) (((var) & (flag)) != 0)
 #define HAS_ALL_FLAGS(var, required_flags)                                     \
   (((var) & (required_flags)) == (required_flags))
