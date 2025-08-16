@@ -1,2 +1,3 @@
 testmain.c
-build/*
+build/
+.ropeproject

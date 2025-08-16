@@ -1,1 +1,0 @@
-Currently the propsignature is a buffer of ints, when there are trailing 0 ints they basically non contributuing to the propset and shouldn't affect the hash with the cap. So its better to use Vector.
