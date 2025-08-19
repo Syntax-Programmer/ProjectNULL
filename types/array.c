@@ -81,7 +81,7 @@ StatusCode arr_VectorPush(Vector *arr, const void *data,
     u64 new_cap = (grow_callback) ? grow_callback(arr->cap) : arr->cap * 2;
     if (new_cap < arr->cap) {
       STATUS_LOG(WARNING, "Cannot grow vector, faulty grow callback. Default "
-                          "grow strat to be used.");
+                          "grow strategy to be used.");
       new_cap = arr->cap * 2;
     }
     void *new_mem = realloc(arr->mem, new_cap * arr->elem_size);
@@ -105,7 +105,7 @@ StatusCode arr_VectorPushEmpty(Vector *arr, u64 (*grow_callback)(u64 old_cap),
     u64 new_cap = (grow_callback) ? grow_callback(arr->cap) : arr->cap * 2;
     if (new_cap < arr->cap) {
       STATUS_LOG(WARNING, "Cannot grow vector, faulty grow callback. Default "
-                          "grow strat to be used.");
+                          "grow strategy to be used.");
       new_cap = arr->cap * 2;
     }
     void *new_mem = realloc(arr->mem, new_cap * arr->elem_size);
@@ -288,7 +288,7 @@ StatusCode arr_BuffArrGrowWCallback(BuffArr *arr,
   u64 new_cap = (grow_callback) ? grow_callback(arr->cap) : arr->cap * 2;
   if (new_cap < arr->cap) {
     STATUS_LOG(WARNING, "Cannot grow buff array, faulty grow callback. Default "
-                        "grow strat to be used.");
+                        "grow strategy to be used.");
     new_cap = arr->cap * 2;
   }
   void *new_mem = realloc(arr->mem, new_cap * arr->elem_size);
