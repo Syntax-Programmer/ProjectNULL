@@ -1,9 +1,10 @@
 #include "ecs/ecs.h"
 #include "engine/engine.h"
+#include "utils/common.h"
 #include <sys/time.h>
 
 typedef struct {
-  u64 x[50];
+  u64 x[10000];
 } AA;
 
 i32 main() {
@@ -28,16 +29,25 @@ i32 main() {
 
   ecs_HandlePropIdToPropSignatures(signature, id1, PROP_SIGNATURE_ATTACH);
 
-  Layout *layout = ecs_LayoutCreate(signature);
-  Entity *entity[100];
-  for (u64 i = 0; i < 100; i++) {
-    entity[i] = ecs_CreateEntityFromLayout(layout);
-  }
-  for (u64 i = 0; i < 100; i++) {
-    ecs_DeleteEntityFromLayout(entity[i]);
-  }
+  // Layout *layout = ecs_LayoutCreate(signature);
+  // volatile Entity *entity[1000000];
+  // volatile u64 dummy_sum = 0;
 
-  ecs_LayoutDelete(layout);
+  // for (u64 i = 0; i < 1000000; i++) {
+  //   entity[i] = ecs_CreateEntityFromLayout(layout);
+  //   dummy_sum += (u64)entity[i];
+  // }
+  // printf("%zu\n", dummy_sum);
+  // for (u64 i = 0; i < 1000000; i++) {
+  //   ecs_DeleteEntity((Entity *)entity[i]);
+  // }
+
+  Entity *entity[1000000];
+  u64 sum = 0;
+
+  for (u64 i = 0; i < 1000000; i++) {
+    entity[i] = ecs_CreateEntity(signature, DUPLICATE_PROPS_SIGNATURE_KEEP);
+  }
 
   engine_Exit();
 

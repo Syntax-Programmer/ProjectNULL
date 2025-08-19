@@ -193,6 +193,23 @@ StatusCode ecs_PropsSignatureDelete(PropsSignature *signature) {
   CHECK_VALID_ECS_STATE(NULL_EXCEPTION);
   NULL_FUNC_ARG_ROUTINE(signature, NULL_EXCEPTION);
 
+  Layout *layout = hm_GetEntry(ecs_state->ecs, signature);
+  if (layout && layout->layout_signature == signature) {
+    /*
+     * Since this is a user callable function that is not called by internals
+     * we do an important check here.
+     *
+     * We check here is the signature user is freeing, present inside any
+     * layout. If yes we have to terminate execution. As nt doing so will
+     * corrupt internal layouts.
+     */
+    STATUS_LOG(
+        FAILURE,
+        "Cannot delete the prop signature as it has been used to create a "
+        "layout. Now this signature will be freed when the layout is freed "
+        "automatically.");
+  }
+
   // This public function checks for invalid state on top of static func which
   // doesn't check anything.
   return PropSignatureDeleteCallback(signature);
@@ -269,6 +286,7 @@ static inline u64 mix64(u64 x) {
   x ^= x >> 33;
   x *= 0xc4ceb9fe1a85ec53ULL;
   x ^= x >> 33;
+
   return x;
 }
 
@@ -277,7 +295,6 @@ static u64 PropsSignatureHashFunc(const void *signature) {
 
   const u64 *data = arr_BuffArrRaw(sign->id_bitset);
   size_t cap = arr_BuffArrCap(sign->id_bitset);
-
   u64 hash = ecs_state->signature_hash_seed;
 
   for (size_t i = 0; i < cap; i++) {
@@ -333,21 +350,20 @@ static StatusCode AddLayoutMem(Layout *layout) {
   return SUCCESS;
 }
 
-Layout *ecs_LayoutCreate(PropsSignature *signature) {
+Layout *ecs_LayoutCreate(PropsSignature *signature,
+                         DuplicatePropsSignatureHandleMode mode) {
   CHECK_VALID_ECS_STATE(NULL);
   NULL_FUNC_ARG_ROUTINE(signature, NULL);
-
-  Layout *layout = NULL;
-  if ((layout = hm_GetEntry(ecs_state->ecs, signature)) != NULL) {
-    return layout;
+  if (mode != DUPLICATE_PROPS_SIGNATURE_FREE &&
+      mode != DUPLICATE_PROPS_SIGNATURE_KEEP) {
+    STATUS_LOG(FAILURE, "Invalid mode provided to create layout.");
+    return NULL;
   }
 
   // Size of one of each attached components.
   u64 props_struct_size = 0;
-  u64 *size_raw = arr_VectorRaw(ecs_state->props_metadata_table.size);
   u64 *prop_signature_raw = arr_BuffArrRaw(signature->id_bitset);
   u64 prop_signature_cap = arr_BuffArrCap(signature->id_bitset);
-
   // Checking if the layout contains any props at all or not.
   for (u64 i = 0; i < props_struct_size; i++) {
     if (prop_signature_raw[i] != 0) {
@@ -361,8 +377,28 @@ Layout *ecs_LayoutCreate(PropsSignature *signature) {
     }
   }
 
+  Layout *layout = NULL;
+  if ((layout = hm_GetEntry(ecs_state->ecs, signature)) != NULL) {
+    if (mode == DUPLICATE_PROPS_SIGNATURE_FREE) {
+      if (layout->layout_signature != signature) {
+        /*
+         * If this condition is not met, that means that the user is using the
+         * same signature over and over for multiple operations(for example:
+         * Using the same signature over and over to create entities from.). In
+         * this case we will have to ignore the free mode as we can't just free
+         * the internals of layout corrupting it.
+         */
+        // Using callback for some reason as the ecs_ one has redundant checks.
+        PropSignatureDeleteCallback(signature);
+      }
+    }
+    return layout;
+  }
+
+  u64 *size_raw = arr_VectorRaw(ecs_state->props_metadata_table.size);
   for (u64 i = 0; i < prop_signature_cap; i++) {
     u64 bitset_int = prop_signature_raw[i];
+
     // This lets us decompose prop bitflags into individual props.
     while (bitset_int) {
       // Extract the lowest most set bit.
@@ -444,6 +480,8 @@ StatusCode ecs_LayoutDelete(Layout *layout) {
   return hm_DeleteEntry(ecs_state->ecs, layout->layout_signature);
 }
 
+/* ----  ENTITY RELATED FUNCTIONS  ---- */
+
 Entity *ecs_CreateEntityFromLayout(Layout *layout) {
   CHECK_VALID_ECS_STATE(NULL);
   NULL_FUNC_ARG_ROUTINE(layout, NULL);
@@ -466,12 +504,26 @@ Entity *ecs_CreateEntityFromLayout(Layout *layout) {
   return entity;
 }
 
-StatusCode ecs_DeleteEntityFromLayout(Entity *entity) {
+Entity *ecs_CreateEntity(PropsSignature *signature,
+                         DuplicatePropsSignatureHandleMode mode) {
+  // Some error checks will be done through internaL function calls.
+  Layout *layout = NULL;
+  IF_NULL(layout = ecs_LayoutCreate(signature, mode)) {
+    STATUS_LOG(
+        FAILURE,
+        "Cannot create entity. Failure to find/create appropriate Layout.");
+    return NULL;
+  }
+
+  return ecs_CreateEntityFromLayout(layout);
+}
+
+StatusCode ecs_DeleteEntity(Entity *entity) {
   CHECK_VALID_ECS_STATE(NULL_EXCEPTION);
   NULL_FUNC_ARG_ROUTINE(entity, NULL_EXCEPTION);
-
   if (!entity->layout || entity->index == INVALID_INDEX) {
-    STATUS_LOG(FAILURE, "Cannot delete an already deleted entity.");
+    STATUS_LOG(FAILURE, "USE AFTER FREEING: Cannot delete entity that has "
+                        "already been deleted.");
   }
 
   IF_FUNC_FAILED(

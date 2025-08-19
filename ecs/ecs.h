@@ -48,10 +48,21 @@ StatusCode ecs_PropSignatureClear(PropsSignature *signature);
 
 /* ----  LAYOUT RELATED FUNCTIONS  ---- */
 
-Layout *ecs_LayoutCreate(PropsSignature *signature);
+typedef enum {
+  DUPLICATE_PROPS_SIGNATURE_FREE,
+  DUPLICATE_PROPS_SIGNATURE_KEEP
+} DuplicatePropsSignatureHandleMode;
+
+Layout *ecs_LayoutCreate(PropsSignature *signature,
+                         DuplicatePropsSignatureHandleMode mode);
 StatusCode ecs_LayoutDelete(Layout *layout);
+
+/* ----  ENTITY RELATED FUNCTIONS  ---- */
+
 Entity *ecs_CreateEntityFromLayout(Layout *layout);
-StatusCode ecs_DeleteEntityFromLayout(Entity *entity);
+Entity *ecs_CreateEntity(PropsSignature *signature,
+                         DuplicatePropsSignatureHandleMode mode);
+StatusCode ecs_DeleteEntity(Entity *entity);
 
 /* ----  INIT/EXIT FUNCTIONS  ---- */
 
@@ -61,9 +72,3 @@ StatusCode ecs_Exit(void);
 #ifdef __cplusplus
 }
 #endif
-
-/*
- * All the props signature will be stored in the layout, so the vector * inside
- * it can be purged without any worry. This means we can use the
- * props_signature_arena.
- */
