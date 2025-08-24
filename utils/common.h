@@ -52,6 +52,7 @@ typedef double f64;
 #define REQUIRE(expr) assert((expr) && "REQUIRE failed: " #expr)
 
 #define INVALID_INDEX ((u64)(-1))
+#define INVALID_OFFSET ((u64)(-1))
 
 #ifdef __cplusplus
 }

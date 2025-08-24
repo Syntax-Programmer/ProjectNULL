@@ -27,6 +27,7 @@ struct __Layout {
   Vector *data;
   Vector *data_free_indices; // array of u64
   PropsSignature *layout_signature;
+  u64 props_combined_size;
 };
 
 struct __Entity {
@@ -46,8 +47,7 @@ typedef struct {
   time_t signature_hash_seed;
   /*
    * This represents the entire ECS, where the key is PropSignature, and the
-   * values are Layout. A hashmap for O(1) access and manipulation made
-   for
+   * values are Layout. A hashmap for O(1) access and manipulation made for
    * performant entity creation.
    */
   Hm *ecs;
@@ -67,7 +67,8 @@ static EcsState *ecs_state = NULL;
 
 /* ----  UTILITY FUNCTIONS   ---- */
 
-static u64 PropsMetadataTableIndex(u64 prop_bitset, u64 int_index);
+static u64 PropBitsetToPropId(u64 prop_bitset, u64 prop_signature_index);
+static u64 PropIdToPropBitset(PropId id, u64 *pSignature_index);
 
 /* ----  PROPS METADATA RELATED FUNCTIONS  ---- */
 
@@ -89,9 +90,23 @@ static u64 LayoutDataGrowCallback(u64 size);
 static StatusCode AddLayoutMem(Layout *layout);
 static StatusCode LayoutDeleteCallback(void *layout);
 
+/* ----  ENTITY RELATED FUNCTIONS  ---- */
+
+#define ENTITY_USE_AFTER_FREE_ROUTINE(entity, ret_val)                         \
+  do {                                                                         \
+    if (!entity->layout || entity->index == INVALID_INDEX) {                   \
+      STATUS_LOG(                                                              \
+          USE_AFTER_FREE,                                                      \
+          "Cannot operate on an entity that has already been deleted.");       \
+      return ret_val;                                                          \
+    }                                                                          \
+  } while (0)
+
+static u64 GetEntityPropArrOffset(Entity *entity, PropId id);
+
 /* ----  UTILITY FUNCTIONS   ---- */
 
-static u64 PropsMetadataTableIndex(u64 prop_bitset, u64 int_index) {
+static u64 PropBitsetToPropId(u64 prop_bitset, u64 prop_signature_index) {
   if (prop_bitset == 0) {
     return INVALID_INDEX; // Undefined for zero
   }
@@ -116,7 +131,13 @@ static u64 PropsMetadataTableIndex(u64 prop_bitset, u64 int_index) {
   table_index = n;
 #endif
 
-  return bit_position + (int_index * U64_BIT_COUNT);
+  return bit_position + (prop_signature_index * U64_BIT_COUNT);
+}
+
+static u64 PropIdToPropBitset(PropId id, u64 *pSignature_index) {
+  *pSignature_index = id / U64_BIT_COUNT;
+
+  return (1 << id % U64_BIT_COUNT);
 }
 
 /* ----  PROPS METADATA RELATED FUNCTIONS  ---- */
@@ -220,9 +241,13 @@ StatusCode ecs_HandlePropIdToPropSignatures(PropsSignature *signature,
                                             PropsSignatureHandleMode mode) {
   CHECK_VALID_ECS_STATE(NULL_EXCEPTION);
   NULL_FUNC_ARG_ROUTINE(signature, NULL_EXCEPTION);
-
+  if (id == INVALID_PROP_ID) {
+    STATUS_LOG(FAILURE, "Invalid prop id provided.");
+    return FAILURE;
+  }
   if (mode != PROP_SIGNATURE_ATTACH && mode != PROP_SIGNATURE_DETACH) {
     STATUS_LOG(FAILURE, "Invalid mode provided.");
+    return FAILURE;
   }
   char *log_str = (mode == PROP_SIGNATURE_DETACH) ? "detach" : "attach";
 
@@ -360,12 +385,10 @@ Layout *ecs_LayoutCreate(PropsSignature *signature,
     return NULL;
   }
 
-  // Size of one of each attached components.
-  u64 props_struct_size = 0;
   u64 *prop_signature_raw = arr_BuffArrRaw(signature->id_bitset);
   u64 prop_signature_cap = arr_BuffArrCap(signature->id_bitset);
   // Checking if the layout contains any props at all or not.
-  for (u64 i = 0; i < props_struct_size; i++) {
+  for (u64 i = 0; i < prop_signature_cap; i++) {
     if (prop_signature_raw[i] != 0) {
       break;
     }
@@ -395,6 +418,8 @@ Layout *ecs_LayoutCreate(PropsSignature *signature,
     return layout;
   }
 
+  // Size of one of each attached components.
+  u64 props_combined_size = 0;
   u64 *size_raw = arr_VectorRaw(ecs_state->props_metadata_table.size);
   for (u64 i = 0; i < prop_signature_cap; i++) {
     u64 bitset_int = prop_signature_raw[i];
@@ -404,10 +429,9 @@ Layout *ecs_LayoutCreate(PropsSignature *signature,
       // Extract the lowest most set bit.
       u64 prop_bitset = bitset_int & -bitset_int;
 
-      u64 index = PropsMetadataTableIndex(prop_bitset, i);
-      if (index != INVALID_INDEX) {
-        props_struct_size += size_raw[index];
-      }
+      u64 index = PropBitsetToPropId(prop_bitset, i);
+      // Since bitset_int != 0, this will be a valid index.
+      props_combined_size += size_raw[index];
 
       // Clearing the lowest set bit from the props;
       bitset_int ^= prop_bitset;
@@ -416,6 +440,7 @@ Layout *ecs_LayoutCreate(PropsSignature *signature,
 
   layout = mem_PoolArenaCalloc(ecs_state->layout_arena);
   MEM_ALLOC_FAILURE_NO_CLEANUP_ROUTINE(layout, NULL);
+  layout->props_combined_size = props_combined_size;
   /*
    * We create the array with props_struct_size * CHUNK_ARR_CAP, but each
    * entry in itself be multiple arrays of capacity CHUNK_ARR_CAP.
@@ -426,7 +451,7 @@ Layout *ecs_LayoutCreate(PropsSignature *signature,
    * The props_struct_size * CHUNK_ARR_CAP is just a size calculation and
    * doesn't reflect internal memory structure.
    */
-  layout->data = arr_VectorCustomCreate(props_struct_size * CHUNK_ARR_CAP, 1);
+  layout->data = arr_VectorCustomCreate(props_combined_size * CHUNK_ARR_CAP, 1);
   IF_NULL(layout->data) {
     LayoutDeleteCallback(layout);
     MEM_ALLOC_FAILURE_SUB_ROUTINE(layout->data, NULL);
@@ -501,6 +526,8 @@ Entity *ecs_CreateEntityFromLayout(Layout *layout) {
 
   arr_VectorPop(layout->data_free_indices, &entity->index);
 
+  printf("Index: %zu, ", entity->index);
+
   return entity;
 }
 
@@ -521,10 +548,7 @@ Entity *ecs_CreateEntity(PropsSignature *signature,
 StatusCode ecs_DeleteEntity(Entity *entity) {
   CHECK_VALID_ECS_STATE(NULL_EXCEPTION);
   NULL_FUNC_ARG_ROUTINE(entity, NULL_EXCEPTION);
-  if (!entity->layout || entity->index == INVALID_INDEX) {
-    STATUS_LOG(FAILURE, "USE AFTER FREEING: Cannot delete entity that has "
-                        "already been deleted.");
-  }
+  ENTITY_USE_AFTER_FREE_ROUTINE(entity, USE_AFTER_FREE);
 
   IF_FUNC_FAILED(
       /*
@@ -541,6 +565,84 @@ StatusCode ecs_DeleteEntity(Entity *entity) {
 
   return SUCCESS;
 }
+
+static u64 GetEntityPropArrOffset(Entity *entity, PropId id) {
+  u64 prop_array_offset = 0;
+  u64 *prop_signature_raw =
+      arr_BuffArrRaw(entity->layout->layout_signature->id_bitset);
+  u64 prop_signature_cap =
+      arr_BuffArrCap(entity->layout->layout_signature->id_bitset);
+  u64 *size_raw = arr_VectorRaw(ecs_state->props_metadata_table.size);
+
+  u64 signature_index = 0;
+  u64 id_bitset = PropIdToPropBitset(id, &signature_index);
+
+  for (u64 i = 0; i < prop_signature_cap; i++) {
+    u64 bitset_int = prop_signature_raw[i];
+    if (i == signature_index && HAS_FLAG(bitset_int, id_bitset)) {
+      return prop_array_offset;
+    }
+
+    // This lets us decompose prop bitflags into individual props.
+    while (bitset_int) {
+      // Extract the lowest most set bit.
+      u64 prop_bitset = bitset_int & -bitset_int;
+
+      PropId id = PropBitsetToPropId(prop_bitset, i);
+      // Since bitset_int != 0, this will be a valid index.
+      prop_array_offset += size_raw[id] * CHUNK_ARR_CAP;
+
+      // Clearing the lowest set bit from the props;
+      bitset_int ^= prop_bitset;
+    }
+  }
+
+  STATUS_LOG(FAILURE, "Invalid PropId: %zu does not belong to the entity.", id);
+
+  return INVALID_OFFSET;
+}
+
+void *ecs_GetPropDataFromEntity(Entity *entity, PropId id) {
+  /*
+   * NOTE: This function is susceptible to out of bounds access, but since this
+   * is a user facing function, we have to say so as the users are dumb.
+   */
+  CHECK_VALID_ECS_STATE(NULL);
+  NULL_FUNC_ARG_ROUTINE(entity, NULL);
+  ENTITY_USE_AFTER_FREE_ROUTINE(entity, NULL);
+  if (id == INVALID_PROP_ID) {
+    STATUS_LOG(FAILURE, "Invalid prop id provided.");
+    return NULL;
+  }
+  u64 prop_id_size = -1;
+  IF_FUNC_FAILED(
+      arr_VectorGet(ecs_state->props_metadata_table.size, id, &prop_id_size)) {
+    STATUS_LOG(FAILURE, "Invalid prop id provided.");
+    return NULL;
+  }
+
+  u64 layout_data_index = entity->index / CHUNK_ARR_CAP;
+  u64 internal_data_index = entity->index % CHUNK_ARR_CAP;
+
+  void *layout_mem = arr_VectorRaw(entity->layout->data);
+  IF_NULL(layout_mem) {
+    STATUS_LOG(
+        FAILURE,
+        "Cannot get memory block, corrupted entity may have been created.");
+    return NULL;
+  }
+
+  u64 prop_arr_offset = GetEntityPropArrOffset(entity, id);
+  if (prop_arr_offset == INVALID_OFFSET) {
+    STATUS_LOG(FAILURE, "Cannot find the array offset of the PropId: %zu", id);
+    return NULL;
+  }
+
+  return layout_mem + (layout_data_index * CHUNK_ARR_CAP) +
+         GetEntityPropArrOffset(entity, id) +
+         (internal_data_index * prop_id_size);
+}
+
 
 /* ----  INIT/EXIT FUNCTIONS  ---- */
 

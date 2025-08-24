@@ -63,6 +63,7 @@ Entity *ecs_CreateEntityFromLayout(Layout *layout);
 Entity *ecs_CreateEntity(PropsSignature *signature,
                          DuplicatePropsSignatureHandleMode mode);
 StatusCode ecs_DeleteEntity(Entity *entity);
+void *ecs_GetPropDataFromEntity(Entity *entity, PropId id);
 
 /* ----  INIT/EXIT FUNCTIONS  ---- */
 

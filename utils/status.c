@@ -18,6 +18,8 @@ static const char *StatusToStr(StatusCode code) {
     return "CREATION FAILURE";
   case OUT_OF_BOUNDS_ACCESS:
     return "OUT OF BOUNDS ACCESS";
+  case USE_AFTER_FREE:
+    return "USE AFTER FREE";
   default:
     return "UNKNOWN STATUS CODE";
   }

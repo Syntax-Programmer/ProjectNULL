@@ -28,7 +28,8 @@ typedef enum {
    * Use this when either knowingly or unknowingly something fails to
    * clear bounds checks. Be it array index, hashmap key or whatever.
    */
-  OUT_OF_BOUNDS_ACCESS
+  OUT_OF_BOUNDS_ACCESS,
+  USE_AFTER_FREE
 } StatusCode;
 
 // A thread safe and generally better logger.
